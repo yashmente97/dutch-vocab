@@ -793,7 +793,7 @@ create policy "anon access" on vocab_sync
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '0.36.2';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '0.36.3';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1971,7 +1971,9 @@ function renderFlashcardQuestion(w){
   document.getElementById('typeBadge').textContent = w.type || '';
   document.getElementById('listTag').textContent = listTagText(w);
   document.getElementById('promptText').textContent = w.english || '—';
-  document.getElementById('promptSub').textContent = 'Try to recall, then flip the card';
+  document.getElementById('promptSub').textContent = w.type === 'preposition' && w.phrase
+    ? w.phrase.replace(/_{2,}/g, '___') + '  · which preposition?'
+    : 'Try to recall, then flip the card';
 
   document.getElementById('fields').innerHTML = `<div id="fcPhase1">
     <button class="snt-show-btn" type="button" id="fcShow">🃏 Show answer <kbd>↵</kbd></button>
@@ -2000,6 +2002,9 @@ function revealFlashcard(){
     if(current.imperfectum) answerHtml += `<div class="answerline"><span class="k">Imperfectum</span><span class="v">${escapeHtml(current.imperfectum)}</span> ${spk(current.imperfectum)}</div>`;
   } else if(current.type === 'adjective'){
     answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
+  } else if(current.type === 'preposition'){
+    answerHtml += `<div class="answerline"><span class="k">Preposition</span><span class="v">${escapeHtml(current.answer)}</span></div>`;
+    if(current.dutch) answerHtml += `<div class="answerline"><span class="k">Sentence</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
   } else if(current.type === 'sentence'){
     answerHtml += `<div class="answerline"><span class="k">Translation</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
   }
@@ -2140,9 +2145,9 @@ function next(forceWord){
   synonymWarned = ''; shapeWarned = '';
   // Type-driven dispatch first: sentences and prepositions always use their own UI
   if(current.type === 'sentence'){ currentSubmode = 'sentence'; renderSentenceQuestion(current); return; }
-  if(current.type === 'preposition'){ currentSubmode = 'preposition'; renderPrepositionQuestion(current); return; }
   // Practice mode dispatch — non-normal modes render their own UI and bail out
   const mode = settings.practiceMode || 'normal';
+  if(current.type === 'preposition' && mode !== 'flashcards'){ currentSubmode = 'preposition'; renderPrepositionQuestion(current); return; }
   if(mode === 'flashcards'){ currentSubmode = 'flashcards'; renderFlashcardQuestion(current); return; }
   if(mode === 'article')   { currentSubmode = 'article';  renderArticleQuestion(current); return; }
   if(mode === 'verbform')  { currentSubmode = 'verbform'; renderVerbFormQuestion(current); return; }
