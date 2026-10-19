@@ -214,6 +214,7 @@
   .ls-seg.hit{border-left:3px solid var(--orange);}
   .ls-sp{font-weight:600;min-width:90px;color:var(--muted);}
   .ls-qtag{font-size:11px;font-weight:700;color:var(--orange);}
+  .fc-when{display:block;font-size:11px;font-weight:400;opacity:.75;margin-top:2px;}
   .gr-topics{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px;}
   .gr-topic{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--code-bg);}
   .gr-topic.ok::before{content:'✅ ';} .gr-topic.mid::before{content:'🟡 ';} .gr-topic.bad::before{content:'🔴 ';}
@@ -642,7 +643,7 @@
         <button class="btn ghost" id="btnBack" title="Go back one word (Alt+B)" disabled>← Back</button>
         <button class="btn ghost" id="btnHint" title="Give me a hint (Alt+H)">? Hint</button>
         <button class="btn ghost" id="btnReveal" title="Reveal answer (Alt+R)">Reveal</button>
-        <button class="btn ghost" id="btnKnow" title="I already know this — never ask again (Alt+K)">✓ Know it</button>
+        <button class="btn ghost" id="btnKnow" title="I already know this: never ask again, in any mode (Alt+K)">✓ Know it</button>
       </div>
       <div class="feedback" id="feedback"></div>
       <div class="hintkey" id="hintKey">Tab to jump fields · Enter to check · Enter again for next · Alt+number for quick words</div>
@@ -793,7 +794,7 @@ create policy "anon access" on vocab_sync
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '0.36.3';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '0.37.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1771,6 +1772,8 @@ function pickNext(){
     return p[Math.floor(Math.random() * p.length)];
   }
 
+  if((settings.practiceMode || 'normal') === 'flashcards') return flashcardPick(p);
+
   // SMART (FSRS): 1) missed words whose 10-min step is up (oldest first),
   // 2) due reviews (most forgotten first), 3) new words up to the daily limit,
   // 4) nothing left → practise ahead on the weakest words.
@@ -2014,10 +2017,12 @@ function revealFlashcard(){
   document.getElementById('fields').innerHTML = `<div class="sentence-reveal">
     ${answerHtml}${exampleHtml}${noteHtml}
   </div>
-  <div class="sentence-buttons" style="grid-template-columns:1fr">
-    <button class="snt-btn" type="button" id="fcNext">→ Next card <kbd>↵</kbd></button>
+  <div class="sentence-buttons">
+    <button class="snt-btn no" type="button" id="fcNo">✗ I didn't know <kbd>N</kbd><span class="fc-when">again in a minute</span></button>
+    <button class="snt-btn yes" type="button" id="fcYes">✓ I knew it <kbd>↵</kbd><span class="fc-when">next in ${fcFmtDays(fcNextIvl(fcRec(current.id)))}</span></button>
   </div>`;
-  document.getElementById('fcNext').addEventListener('click', advanceFlashcard);
+  document.getElementById('fcYes').addEventListener('click', () => advanceFlashcard(true));
+  document.getElementById('fcNo').addEventListener('click', () => advanceFlashcard(false));
 
   if(settings.autoSpeak){
     const txt = primarySpeakable(current);
@@ -2025,11 +2030,53 @@ function revealFlashcard(){
   }
 }
 
-function advanceFlashcard(){
-  // Pure browsing — no FSRS update, no daily count bump, no streak effect.
-  // Just pick the next word from the same pool.
+// Flashcards keep their own memory in progress['fc::<word id>'], separate from the typed-answer
+// FSRS schedule (no effect on Normal mode, the daily count or the streak). “I knew it” pushes the
+// card away: 4 days, then ×2.5 each time (1 day right after a miss). “I didn't know” brings it back
+// after about a minute, ahead of new cards, until you know it. “Known everywhere” retires the word
+// in every mode (same as “Know it”).
+const FC_RETRY_MS = 60 * 1000;
+function fcRec(id){ return progress['fc::' + id]; }
+function fcNextIvl(r){
+  if(!r || !r.reps) return 4;
+  if(!r.ivl) return 1;
+  return Math.min(365, Math.round(r.ivl * 2.5));
+}
+function fcFmtDays(d){ return d < 1 ? 'a minute' : d === 1 ? '1 day' : d < 60 ? d + ' days' : Math.round(d / 30) + ' months'; }
+function advanceFlashcard(knew){
+  if(current && (knew === true || knew === false)){
+    const k = 'fc::' + current.id, r = progress[k] || { state: 'fc', reps: 0, lapses: 0, ivl: 0 };
+    const now = Date.now();
+    if(knew){ r.ivl = fcNextIvl(r); r.due = now + r.ivl * DAY_MS; }
+    else { r.ivl = 0; r.due = now + FC_RETRY_MS; r.lapses = (r.lapses || 0) + 1; }
+    r.reps = (r.reps || 0) + 1; r.last = now; r.state = 'fc';
+    progress[k] = r; save();
+  }
   flashcardRevealed = false;
   next();
+}
+// 1) cards you didn't know, once their minute is up; 2) cards whose interval is over (most overdue
+// first); 3) cards you haven't flipped yet; 4) nothing left → the cards coming back soonest.
+let fcDoneNoticeDay = '';
+function flashcardPick(p){
+  const now = Date.now(), retry = [], due = [], fresh = [], later = [];
+  for(const w of p){
+    const r = fcRec(w.id);
+    if(!r) fresh.push(w);
+    else if(r.due <= now) (r.ivl ? due : retry).push({ w, due: r.due });
+    else later.push({ w, due: r.due });
+  }
+  if(retry.length){ retry.sort((a, b) => a.due - b.due); return retry[0].w; }
+  if(due.length){ due.sort((a, b) => a.due - b.due); return due[0].w; }
+  if(fresh.length) return fresh[Math.floor(Math.random() * fresh.length)];
+  if(fcDoneNoticeDay !== todayStr()){ fcDoneNoticeDay = todayStr(); setTimeout(() => toast('✅ All flashcards in this list are done for now. Showing the ones coming back soonest.'), 300); }
+  later.sort((a, b) => a.due - b.due);
+  return later.length ? later[0].w : p[0];
+}
+function flashcardQueueText(p){
+  const now = Date.now(); let retry = 0, due = 0, fresh = 0;
+  for(const w of p){ const r = fcRec(w.id); if(!r) fresh++; else if(r.due <= now) r.ivl ? due++ : retry++; }
+  return `Flashcards — to retry: ${retry} · due: ${due} · not flipped yet: ${fresh}`;
 }
 
 // (Generic jumpToCard lives near updateStats — used by the click-to-edit pill.)
@@ -2144,9 +2191,11 @@ function next(forceWord){
   alsoEl.innerHTML = alsoLines.join('<br>');
   synonymWarned = ''; shapeWarned = '';
   // Type-driven dispatch first: sentences and prepositions always use their own UI
-  if(current.type === 'sentence'){ currentSubmode = 'sentence'; renderSentenceQuestion(current); return; }
   // Practice mode dispatch — non-normal modes render their own UI and bail out
   const mode = settings.practiceMode || 'normal';
+  const bk = document.getElementById('btnKnow');
+  bk.textContent = mode === 'flashcards' ? '✓ Known everywhere' : '✓ Know it';
+  if(current.type === 'sentence' && mode !== 'flashcards'){ currentSubmode = 'sentence'; renderSentenceQuestion(current); return; }
   if(current.type === 'preposition' && mode !== 'flashcards'){ currentSubmode = 'preposition'; renderPrepositionQuestion(current); return; }
   if(mode === 'flashcards'){ currentSubmode = 'flashcards'; renderFlashcardQuestion(current); return; }
   if(mode === 'article')   { currentSubmode = 'article';  renderArticleQuestion(current); return; }
@@ -2274,7 +2323,8 @@ function updateStats(){
       seg('mastered', mastered, 'mastered', 'Marked as known — hidden from practice (manage in Settings)')+
     `</span>`;
   let queueTxt = '';
-  if((settings.pickOrder || 'fsrs') === 'fsrs' && (settings.practiceMode || 'normal') !== 'article'){
+  if((settings.pickOrder || 'fsrs') === 'fsrs' && (settings.practiceMode || 'normal') === 'flashcards') queueTxt = flashcardQueueText(p);
+  else if((settings.pickOrder || 'fsrs') === 'fsrs' && (settings.practiceMode || 'normal') !== 'article'){
     const q = smartQueue(p);
     const dueN = q.relearn.length + q.due.length;
     const newLeft = Math.min(q.fresh.length, Math.max(0, newPerDay() - newWordsToday()));
@@ -3602,13 +3652,13 @@ document.addEventListener('keydown', e=>{
       if(e.code === 'KeyN'){ e.preventDefault(); submitSentence(false); return; }
     }
   }
-  // Flashcards: Phase 1 (Enter = Show answer) → Phase 2 (Enter = Next card)
+  // Flashcards: Phase 1 (Enter = Show answer) → Phase 2 (Y/Enter = knew it, N = didn't know)
   if(currentSubmode === 'flashcards' && !e.altKey && !e.metaKey && !e.ctrlKey){
-    if(e.key === 'Enter'){
-      e.preventDefault();
-      if(!flashcardRevealed) revealFlashcard();
-      else advanceFlashcard();
-      return;
+    if(!flashcardRevealed){
+      if(e.key === 'Enter'){ e.preventDefault(); revealFlashcard(); return; }
+    } else {
+      if(e.code === 'KeyY' || e.key === 'Enter'){ e.preventDefault(); advanceFlashcard(true); return; }
+      if(e.code === 'KeyN'){ e.preventDefault(); advanceFlashcard(false); return; }
     }
   }
   if(e.key==='Enter'){
