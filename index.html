@@ -441,6 +441,15 @@
   .sb.mastered{background:var(--purple-bg);color:var(--purple);}
   .wlact{cursor:pointer;color:var(--muted);border:1px solid var(--line);border-radius:7px;padding:2px 8px;font-size:11px;background:var(--card);white-space:nowrap;}
   .wlact:hover{background:var(--surface-hover);}
+  .wl-card{margin-bottom:10px;font-size:13px;line-height:1.45;}
+  .wl-card-line{display:grid;grid-template-columns:92px 1fr;gap:8px;padding:3px 0;}
+  .wl-card-line .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px;}
+  .wl-tools{display:flex;gap:8px;align-items:center;margin:6px 0 10px;}
+  .wl-tools #wlSearch{flex:1;min-width:0;margin:0;}
+  #wlJump{width:92px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px;outline:none;background:var(--card);color:var(--ink);box-sizing:border-box;}
+  #wlJump:focus{border-color:var(--orange);}
+  table.wl .wl-num{display:inline-block;min-width:30px;color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums;}
+  table.wl tr.wl-hit td{background:var(--code-bg);}
   #wlSearch{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;margin:6px 0 10px;font-size:14px;outline:none;background:var(--card);color:var(--ink);box-sizing:border-box;}
   #wlSearch:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,107,26,.12);}
   /* ===== v0.23 layout: header · practice panel · picker ===== */
@@ -772,7 +781,11 @@ create policy "anon access" on vocab_sync
   <div class="modal" style="max-width:660px">
     <h3>📋 Word list</h3>
     <div id="listScopeNote" style="font-size:12px;color:var(--muted);margin-bottom:6px"></div>
-    <input id="wlSearch" placeholder="🔍 Search English or Dutch…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+    <div class="wl-tools">
+      <input id="wlSearch" placeholder="🔍 Search English or Dutch…" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+      <input id="wlJump" type="number" min="1" inputmode="numeric" placeholder="Go to #" title="Type a number and press Enter to open that word" />
+      <select id="wlSort" class="theme-sel" title="Sort order"><option value="excel">Excel order</option><option value="az">A–Z</option></select>
+    </div>
     <div class="statusfilter" id="statusFilter"></div>
     <div id="wordTableWrap" style="max-height:56vh;overflow:auto;margin-top:12px"></div>
     <div style="text-align:right;margin-top:14px"><button class="btn primary" id="btnCloseList">Done</button></div>
@@ -794,7 +807,7 @@ create policy "anon access" on vocab_sync
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '0.37.0';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '0.37.1';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -3912,7 +3925,19 @@ function renderWordDetail(w){
   const avgT = p.avgTime ? (p.avgTime/1000).toFixed(1) + 's' : '—';
   const lastT = p.lastTimings && p.lastTimings.length
     ? p.lastTimings.map(t => (t/1000).toFixed(1)+'s').join(' · ') : '—';
-  return `<div class="row"><div><div class="k">Seen</div><div class="v">${seen}×</div></div>`+
+  // The card itself first (what you'd see after Reveal), then the practice stats
+  const line = (k, v) => v ? `<div class="wl-card-line"><span class="k">${k}</span><span>${v}</span></div>` : '';
+  const fc = fcRec(w.id);
+  const card = `<div class="wl-card">`+
+    line('Dutch', w.type === 'verb' ? answerSummary(w) : w.type === 'preposition' ? `<b>${escapeHtml(w.answer)}</b> · ${escapeHtml(w.dutch)}` : answerSummary(w))+
+    line('Also means', escapeHtml(w.alsoEn || ''))+
+    line('Preposition', escapeHtml(w.prep || '') + (w.prepMeanings ? ` <span style="opacity:.7">(${escapeHtml(w.prepMeanings)})</span>` : ''))+
+    line('Synonyms', escapeHtml(w.syn || ''))+
+    line('Notes', w.notes ? formatNotes(w.notes) : '')+
+    line('Example', w.example ? formatExample(w.example, w.exampleEn) : '')+
+    line('Flashcard', fc ? (fc.ivl ? 'back ' + fmtDueIn(fc.due) : 'marked “didn’t know” — coming back soon') : '')+
+    `</div>`;
+  return card + `<div class="row"><div><div class="k">Seen</div><div class="v">${seen}×</div></div>`+
          `<div><div class="k">Accuracy</div><div class="v">${seen?acc+'%':'—'} (${correct}/${seen})</div></div>`+
          `<div><div class="k">FSRS state</div><div class="v">${escapeHtml(state)}</div></div>`+
          `<div><div class="k">Stability</div><div class="v">${stab}${stab!=='—'?'d':''}</div></div>`+
@@ -3973,15 +3998,20 @@ function renderList(){
     `<button class="sfbtn ${listStatus===k?'active':''}" data-st="${k}">${l} (${counts[k]||0})</button>`).join('');
   document.querySelectorAll('#statusFilter .sfbtn').forEach(b=>
     b.addEventListener('click', ()=>{ listStatus=b.dataset.st; renderList(); }));
-  let rows = filtered.filter(w => listStatus==='all' || (listStatus==='problem' ? isProblem(w) : statusOf(w)===listStatus))
-                     .sort((a,b)=>a.english.localeCompare(b.english));
+  // # = the word's position in this list in Excel order (row order, sheet by sheet: nouns, verbs, …).
+  // It stays the same when you search, filter or sort A–Z, so “#57” always means the same word.
+  const num = new Map(base.map((w, i) => [w.id, i + 1]));
+  let rows = filtered.filter(w => listStatus==='all' || (listStatus==='problem' ? isProblem(w) : statusOf(w)===listStatus));
+  if((settings.listSort || 'excel') === 'az') rows.sort((a,b)=>a.english.localeCompare(b.english));
+  document.getElementById('wlSort').value = settings.listSort || 'excel';
+  const jump = document.getElementById('wlJump'); jump.max = base.length;
   const body = rows.map(w=>{
     const st = statusOf(w);
     const act = st==='mastered'
       ? `<button class="wlact" data-restore="${escapeHtml(w.id)}">↩ bring back</button>`
       : `<button class="wlact" data-retire="${escapeHtml(w.id)}">✓ know it</button>`;
     const isOpen = expandedWordId === w.id;
-    const main = `<tr class="with-detail" data-expand="${escapeHtml(w.id)}"><td><div class="en">${escapeHtml(w.english)}${isOpen?' ▾':' ▸'}</div><div class="du">${answerSummary(w)}</div>${(progress[w.id]||{}).hook ? `<div class="wl-hook">🪝 ${escapeHtml(progress[w.id].hook)}</div>` : ''}</td>`+
+    const main = `<tr class="with-detail ${isOpen ? 'wl-hit' : ''}" data-expand="${escapeHtml(w.id)}"><td><div class="en"><span class="wl-num">${num.get(w.id)}</span>${escapeHtml(w.english)}${isOpen?' ▾':' ▸'}</div><div class="du">${answerSummary(w)}</div>${(progress[w.id]||{}).hook ? `<div class="wl-hook">🪝 ${escapeHtml(progress[w.id].hook)}</div>` : ''}</td>`+
            `<td><span class="sb ${st}">${st==='needs'?'needs practice':st}</span></td>`+
            `<td style="text-align:right">${act}</td></tr>`;
     const detail = isOpen ? `<tr class="detail-row"><td colspan="3"><div class="wl-detail">${renderWordDetail(w)}</div></td></tr>` : '';
@@ -4009,6 +4039,22 @@ function renderList(){
 document.getElementById('btnList').addEventListener('click', openList);
 document.getElementById('btnCloseList').addEventListener('click', ()=>{ hide('listModal'); if(current&&!feedbackShown) next(); });
 document.getElementById('wlSearch').addEventListener('input', e=>{ listSearch = e.target.value.trim(); renderList(); });
+document.getElementById('wlSort').addEventListener('change', e=>{ settings.listSort = e.target.value; save(); renderList(); });
+// Go to #: open that word's details and scroll to it (clears search/filter if they hide it)
+document.getElementById('wlJump').addEventListener('keydown', e=>{
+  if(e.key !== 'Enter') return;
+  e.preventDefault();
+  const base = browseBase(), n = parseInt(e.target.value, 10);
+  if(!(n >= 1 && n <= base.length)){ toast(`Pick 1 to ${base.length}.`); return; }
+  const w = base[n - 1];
+  if(listSearch && !wordMatchesSearch(w, listSearch)){ listSearch = ''; document.getElementById('wlSearch').value = ''; }
+  if(listStatus !== 'all' && (listStatus === 'problem' ? !isProblem(w) : statusOf(w) !== listStatus)) listStatus = 'all';
+  expandedWordId = w.id;
+  renderList();
+  const tr = [...document.querySelectorAll('#wordTableWrap [data-expand]')].find(r => r.dataset.expand === w.id);
+  const wrap = document.getElementById('wordTableWrap');
+  if(tr) wrap.scrollTo({ top: tr.offsetTop - (wrap.querySelector('thead')?.offsetHeight || 0), behavior: 'smooth' });
+});
 
 /* ---------- platform-specific labels (⌥ on Mac, Alt elsewhere) ---------- */
 function applyPlatformLabels(){
