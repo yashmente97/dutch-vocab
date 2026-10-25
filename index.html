@@ -840,7 +840,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.0.0';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.0.1';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -908,13 +908,31 @@ let streakInfo = { streak: 0, lastActiveDate: '', todayDate: '', todayCount: 0, 
 const FREEZE_COST = 100;            // correct answers needed to earn one freeze
 const FREEZE_MAX = 2;               // max freezes you can store at once
 let goalJustReached = false;
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+// Local calendar day (YYYY-MM-DD): a new day starts at midnight where you are, not at midnight UTC
+function todayStr(d = new Date()){ return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function daysBetween(a, b){ return Math.round((new Date(b) - new Date(a)) / DAY_MS); }   // both 'YYYY-MM-DD'
+// The streak as it stands right now. bumpStreak() only runs when you answer, so after missed days
+// the stored number is stale: if the gap is wider than your freezes can cover, the streak is gone.
+function currentStreak(){
+  const s = streakInfo.streak || 0, last = streakInfo.lastActiveDate;
+  if(!s || !last) return 0;
+  const missed = daysBetween(last, todayStr()) - 1;          // full days without practice
+  return missed <= (streakInfo.freezes || 0) ? s : 0;
+}
+function streakTitle(){
+  const s = currentStreak(), last = streakInfo.lastActiveDate;
+  if(!s) return (streakInfo.streak && last) ? 'Streak lost: you missed more days than your freezes could cover. Practise today to start a new one.' : 'Practise today to start a streak.';
+  const missed = daysBetween(last, todayStr()) - 1;
+  if(last === todayStr()) return `${s}-day streak: today is done ✓`;
+  if(missed <= 0) return `${s}-day streak: practise today to keep it`;
+  return `${s}-day streak: ${missed} missed day${missed > 1 ? 's' : ''} will use ${missed > 1 ? 'freezes' : 'a freeze'} when you practise today`;
+}
 function bumpStreak(){
   const today = todayStr();
   let freezesJustUsed = 0;
   if(streakInfo.todayDate !== today){
     if(streakInfo.lastActiveDate){
-      const diff = Math.round((new Date(today) - new Date(streakInfo.lastActiveDate)) / DAY_MS);
+      const diff = daysBetween(streakInfo.lastActiveDate, today);
       if(diff === 1){
         streakInfo.streak = (streakInfo.streak || 0) + 1;       // normal continuation
       } else if(diff > 1){
@@ -1043,7 +1061,7 @@ function showGoalCelebration(){
   const acc = session.answered > 0 ? Math.round((session.correct/session.answered)*100) : 0;
   document.getElementById('goalStats').innerHTML =
     `Words answered today: <b>${streakInfo.todayCount}</b><br>`+
-    `🔥 Streak: <b>${streakInfo.streak} day${streakInfo.streak===1?'':'s'}</b><br>`+
+    `🔥 Streak: <b>${currentStreak()} day${currentStreak()===1?'':'s'}</b><br>`+
     `This session: <b>${session.correct} / ${session.answered}</b> correct (${acc}%)`;
   show('goalModal');
 }
@@ -2358,7 +2376,7 @@ function updateStats(){
   const fz = streakInfo.freezes || 0, pts = streakInfo.points || 0;
   const fzTitle = `Streak freezes: ${fz} (max ${FREEZE_MAX}). Each protects 1 missed day.` + (fz < FREEZE_MAX ? ` Next freeze: ${pts}/${FREEZE_COST} correct answers.` : '');
   document.getElementById('streakBox').innerHTML =
-    `<span class="hs streak" title="Consecutive days practised">🔥 <b>${streakInfo.streak||0}</b></span>`+
+    `<span class="hs streak" title="${streakTitle()}">🔥 <b>${currentStreak()}</b></span>`+
     `<span class="hs goal ${goalPct>=100?'done':''}" title="Today's goal: ${displayedTodayCount}/${goal}"><span class="ring" style="--p:${goalPct}"></span><b>${displayedTodayCount}</b>/${goal}</span>`+
     `<span class="hs freeze" title="${fzTitle}">🛡️ <b>${fz}</b></span>`;
   const cardPart = (function(){
@@ -4209,19 +4227,17 @@ function mergeStates(a, b){
     else prog[id] = (Math.max(pa.last||0, pa.hookAt||0) >= Math.max(pb.last||0, pb.hookAt||0)) ? pa : pb; });
   const newer = (a.updatedAt||0) >= (b.updatedAt||0) ? a : b;
   const settingsOut = {...(b.settings||{}), ...(a.settings||{}), ...(newer.settings||{})};
-  // Streak merge: keep the higher streak count and the more recent activity
+  // Streak merge: take the streak, freezes and points from the copy that practised most recently
+  // (same day: the one that answered more today). Taking the max of both would undo every reset and
+  // every used freeze, so a streak could never be lost.
   const aSi = a.streakInfo || {}, bSi = b.streakInfo || {};
+  const aKey = (aSi.lastActiveDate || '') + '|' + String(aSi.todayCount || 0).padStart(6, '0');
+  const bKey = (bSi.lastActiveDate || '') + '|' + String(bSi.todayCount || 0).padStart(6, '0');
+  const live = aKey >= bKey ? aSi : bSi;
   const streakOut = {
-    streak: Math.max(aSi.streak || 0, bSi.streak || 0),
-    lastActiveDate: (aSi.lastActiveDate || '') >= (bSi.lastActiveDate || '') ? (aSi.lastActiveDate || '') : (bSi.lastActiveDate || ''),
-    todayDate: (aSi.todayDate || '') >= (bSi.todayDate || '') ? (aSi.todayDate || '') : (bSi.todayDate || ''),
-    todayCount: ((aSi.todayDate || '') === (bSi.todayDate || ''))
-                  ? Math.max(aSi.todayCount || 0, bSi.todayCount || 0)
-                  : ((aSi.todayDate || '') >= (bSi.todayDate || '')) ? (aSi.todayCount || 0) : (bSi.todayCount || 0),
-    goalCelebratedDate: (aSi.goalCelebratedDate || '') >= (bSi.goalCelebratedDate || '') ? (aSi.goalCelebratedDate || '') : (bSi.goalCelebratedDate || ''),
-    imported: !!(aSi.imported || bSi.imported),
-    freezes: Math.max(aSi.freezes || 0, bSi.freezes || 0),
-    points: Math.max(aSi.points || 0, bSi.points || 0)
+    streak: live.streak || 0, lastActiveDate: live.lastActiveDate || '', todayDate: live.todayDate || '', todayCount: live.todayCount || 0,
+    freezes: live.freezes || 0, points: live.points || 0,
+    goalCelebratedDate: (aSi.goalCelebratedDate || '') >= (bSi.goalCelebratedDate || '') ? (aSi.goalCelebratedDate || '') : (bSi.goalCelebratedDate || '')
   };
   return { progress:prog, settings:settingsOut, streakInfo: streakOut, updatedAt: Math.max(a.updatedAt||0,b.updatedAt||0) };
 }
