@@ -840,7 +840,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.0.1';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.0.2';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -2367,7 +2367,8 @@ function updateStats(){
     else if(s==='known') kn++;
     else if(s==='needs') need++;
     else lr++; });
-  const mastered = deck.filter(w=>progress[w.id] && progress[w.id].retired).length;
+  // Mastered words are left out of the pool, so count them in the same lists + word type you're practising
+  const mastered = browseBase().filter(w=>progress[w.id] && progress[w.id].retired).length;
   const goal = settings.dailyGoal || 20;
   // Display today's count only when the saved counter belongs to the current day;
   // otherwise show 0 (it'll bump to 1 on the first answer today).
