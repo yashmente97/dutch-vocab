@@ -840,7 +840,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.0.2';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.0.3';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -4323,7 +4323,9 @@ async function doSignIn(ev){
     if(deck.length) next();
     maybeStartTour();
   }catch(e){
-    msg.textContent = /invalid/i.test(e.message) ? 'That email or password isn’t right.' : 'Couldn’t sign in: ' + e.message;
+    msg.textContent = /invalid/i.test(e.message) ? 'That email or password isn’t right.'
+      : /not confirmed/i.test(e.message) ? 'This account isn’t activated yet. Ask the person who shared the app with you to activate it.'
+      : 'Couldn’t sign in: ' + e.message;
   }finally{ btn.disabled = false; btn.textContent = 'Sign in'; }
 }
 function openAccount(){
