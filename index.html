@@ -527,6 +527,10 @@
   .pl-name{flex:1;min-width:0;}
   .pl-meta{font-size:12px;color:var(--muted);white-space:nowrap;}
   .needs{color:var(--orange-dark);font-weight:600;} .fresh{color:var(--blue);}
+  .pl-group{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 10px 2px;font-size:12px;font-weight:700;color:var(--muted);}
+  .pl-both{border:1px solid var(--line);background:var(--card);color:var(--orange-dark);border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .pl-both:hover{border-color:var(--orange);}
+  .pl-name.sub{padding-left:10px;}
   .pl-empty{padding:20px;text-align:center;color:var(--muted);font-size:14px;}
   .picker-foot{display:flex;align-items:center;gap:8px;border-top:1px solid var(--line-soft);margin:0 -18px;padding:10px 12px 0;}
   .picker-foot .btn:disabled{opacity:.5;cursor:default;}
@@ -840,7 +844,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.0.3';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.1.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1441,7 +1445,13 @@ function buildFolderTree(){
     if(l) tree[f].add(l);
   }
   const nat = (a,b) => a.localeCompare(b, undefined, {numeric:true});
-  return Object.keys(tree).sort(nat).map(f => ({ folder: f, lists: [...tree[f]].sort(nat) }));
+  // 'Thema 1: … · Woordenschat' (the official word list) sorts before the thema's other lists
+  const key = l => { const [g, s] = splitList(l); return s ? g + ' · ' + (s === 'Woordenschat' ? '0' : '1' + s) : l; };
+  return Object.keys(tree).sort(nat).map(f => ({ folder: f, lists: [...tree[f]].sort((a, b) => nat(key(a), key(b))) }));
+}
+// 'Thema 1: Op uitstap · Woordenschat' → ['Thema 1: Op uitstap', 'Woordenschat']; plain list names → [name, '']
+function splitList(l){ const i = l.lastIndexOf(' · '); return i > 0 ? [l.slice(0, i), l.slice(i + 3)] : [l, '']; }
+function subListLabel(s){ return s === 'Woordenschat' ? '⭐ Woordenschat' : s;
 }
 function currentScopeLabel(){
   const s = scopeSummary();
@@ -1575,12 +1585,21 @@ function renderScopeTree(){
         `<span class="pf-meta">${cnt(node.lists.length,'list')} · ${fTotal} words${fNeeds?` · <span class="needs">${fNeeds} weak</span>`:''}</span>`+
         (pickerMulti ? '' : `<button class="pf-all ${fActive?'active':''}" data-fall="${escapeHtml(node.folder)}">Practise all</button>`)+
       `</div><div class="pf-lists">`;
+    let group = '';
     for(const l of lists){
+      // Lists of one thema ('… · Woordenschat', '… · Mondeling & schriftelijk') sit under a thema heading
+      const [g, sub] = splitList(l);
+      if(sub && g !== group){
+        const both = node.lists.filter(x => splitList(x)[0] === g);
+        html += `<div class="pl-group"><span>${escapeHtml(g)}</span>`+
+          (pickerMulti || both.length < 2 ? '' : `<button class="pl-both" data-group="${escapeHtml(g)}" data-gfolder="${escapeHtml(node.folder)}">Practise both</button>`)+`</div>`;
+      }
+      group = sub ? g : '';
       const st = stats[l] || {total:0,needs:0,fresh:0};
       const active = scopeMode==='custom' && selectedLists.length===1 && selectedLists[0]===l;
       html += `<button class="pl ${active?'active':''} ${pickerMulti&&pickerDraft.includes(l)?'ticked':''}" data-list="${escapeHtml(l)}">`+
         (pickerMulti ? `<input type="checkbox" tabindex="-1" ${pickerDraft.includes(l)?'checked':''}>` : '')+
-        `<span class="pl-name">${escapeHtml(l)}</span>`+
+        `<span class="pl-name ${sub ? 'sub' : ''}">${escapeHtml(sub ? subListLabel(sub) : l)}</span>`+
         `<span class="pl-meta">${st.total}${st.needs?` · <span class="needs">${st.needs} weak</span>`:''}${st.fresh===st.total&&st.total?' · <span class="fresh">new</span>':''}</span>`+
       `</button>`;
     }
@@ -1594,6 +1613,10 @@ function renderScopeTree(){
     const f = h.dataset.toggle;
     pickerOpenFolders.has(f) ? pickerOpenFolders.delete(f) : pickerOpenFolders.add(f);
     renderScopeTree();
+  }));
+  box.querySelectorAll('.pl-both').forEach(b => b.addEventListener('click', () => {
+    const node = tree.find(n => n.folder === b.dataset.gfolder);
+    if(node) applyScope('custom', node.lists.filter(x => splitList(x)[0] === b.dataset.group));
   }));
   box.querySelectorAll('.pf-all').forEach(b => b.addEventListener('click', () => {
     const node = tree.find(n => n.folder === b.dataset.fall); if(node) applyScope('custom', node.lists);
