@@ -312,7 +312,7 @@
   .sentence-reveal .answerline .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;min-width:104px;margin-right:12px;}
   .sentence-reveal .answerline .v{font-size:17px;}
   @media (max-width:520px){ .sentence-reveal .answerline .k{display:block;min-width:0;margin:6px 0 0;} }
-  .past-prep{color:var(--orange-dark);font-weight:600;opacity:.9;}
+  .past-prep{color:var(--orange-dark);font-weight:inherit;}
   .ex-block{margin-top:12px;font-size:15px;line-height:1.5;color:var(--ink);}
   .ex-block b{color:var(--orange-dark);font-weight:650;}
   @media (max-width:520px){ .n-row{grid-template-columns:1fr;} .n-row > span:empty{display:none;} }
@@ -869,7 +869,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.2.1';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.2.2';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -2155,16 +2155,16 @@ function revealFlashcard(){
   const spk = txt => txt ? speakerBtn(String(txt).split(/[;/]/)[0].trim()) : '';
   let answerHtml = '';
   if(current.type === 'noun'){
-    answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
+    answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${mainAnswerHtml(current, current.dutch)}</span> ${spk(current.dutch)}</div>`;
     if(current.plural){
       answerHtml += `<div class="answerline"><span class="k">Plural</span><span class="v">${escapeHtml(current.plural)}</span> ${spk(current.plural)}</div>`;
     }
   } else if(current.type === 'verb'){
-    if(current.infinitive)  answerHtml += `<div class="answerline"><span class="k">Infinitive</span><span class="v">${escapeHtml(current.infinitive)}</span> ${spk(current.infinitive)}</div>`;
+    if(current.infinitive)  answerHtml += `<div class="answerline"><span class="k">Infinitive</span><span class="v">${mainAnswerHtml(current, current.infinitive)}</span> ${spk(current.infinitive)}</div>`;
     if(current.perfectum)   answerHtml += `<div class="answerline"><span class="k">Perfectum</span><span class="v">${escapeHtml(current.perfectum)}${pastPrepHtml(current, 'perfectum')}</span> ${spk(current.perfectum)}</div>`;
     if(current.imperfectum) answerHtml += `<div class="answerline"><span class="k">Imperfectum</span><span class="v">${escapeHtml(current.imperfectum)}${pastPrepHtml(current, 'imperfectum')}</span> ${spk(current.imperfectum)}</div>`;
   } else if(current.type === 'adjective'){
-    answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
+    answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${mainAnswerHtml(current, current.dutch)}</span> ${spk(current.dutch)}</div>`;
   } else if(current.type === 'preposition'){
     answerHtml += `<div class="answerline"><span class="k">Preposition</span><span class="v">${escapeHtml(current.answer)}</span></div>`;
     if(current.dutch) answerHtml += `<div class="answerline"><span class="k">Sentence</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
@@ -2756,6 +2756,12 @@ function fixedPrepOf(w){
 function pastPrepHtml(w, field){
   const p = w && w.type === 'verb' ? fixedPrepOf(w) : '';
   return p && /perfectum/i.test(field || '') ? ` <span class="past-prep">(${p})</span>` : '';
+}
+// The main answer with its fixed preposition in the accent colour ('zich voorbereiden <op>'),
+// the same colour as the optional '(op)' after the past forms.
+function mainAnswerHtml(w, text){
+  const p = fixedPrepOf(w), h = escapeHtml(text || '');
+  return p ? h.replace(new RegExp(`(\\s)(${p})(?=\\s*(?:[/;]|$))`, 'gi'), '$1<span class="past-prep">$2</span>') : h;
 }
 function prepLineHtml(w){
   if(!w || !['verb','noun','adjective'].includes(w.type) || fixedPrepOf(w)) return '';
@@ -3708,7 +3714,7 @@ function showFeedback(ok, items){
     const sayable = (it.canon || '').split(/[;/]/)[0].trim();
     const spk = sayable ? speakerBtn(sayable) : '';
     if(it.ok){
-      lines += `<div class="answerline"><span class="k">${it.fieldName}</span><span class="v">${escapeHtml(it.canon)}${pastPrepHtml(current, it.fieldName)}</span>${spk}</div>`;
+      lines += `<div class="answerline"><span class="k">${it.fieldName}</span><span class="v">${it.canon === dutchOf(current) ? mainAnswerHtml(current, it.canon) : escapeHtml(it.canon)}${pastPrepHtml(current, it.fieldName)}</span>${spk}</div>`;
     } else {
       const target = it.canonicalForms ? closestAccepted(it.userVal, it.canonicalForms) : it.canon;
       const d = renderDiff(it.userVal, target);
@@ -4167,9 +4173,9 @@ function browseBase(){
 }
 const STATUS_DEFS = [['all','All'],['new','New'],['learning','Learning'],['needs','Needs practice'],['known','Known'],['mastered','Mastered'],['problem','🩹 Problem words']];
 function answerSummary(w){
-  if(w.type==='verb') return `${escapeHtml(w.infinitive)} · ${escapeHtml(w.perfectum)} · ${escapeHtml(w.imperfectum)}`;
-  if(w.type==='noun') return escapeHtml(w.dutch)+(w.plural?` <span style="opacity:.6">/ ${escapeHtml(w.plural)}</span>`:'');
-  return escapeHtml(w.dutch);
+  if(w.type==='verb') return `${mainAnswerHtml(w, w.infinitive)} · ${escapeHtml(w.perfectum)}${pastPrepHtml(w, 'perfectum')} · ${escapeHtml(w.imperfectum)}${pastPrepHtml(w, 'imperfectum')}`;
+  if(w.type==='noun') return mainAnswerHtml(w, w.dutch)+(w.plural?` <span style="opacity:.6">/ ${escapeHtml(w.plural)}</span>`:'');
+  return mainAnswerHtml(w, w.dutch);
 }
 function openList(){
   listStatus = 'all'; listSearch = '';
