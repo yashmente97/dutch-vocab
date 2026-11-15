@@ -163,7 +163,7 @@
   .prompt{font-size:34px;font-weight:700;line-height:1.15;margin:2px 0 6px;letter-spacing:-.5px;color:var(--ink);}
   .promptsub{color:var(--muted);font-size:13px;margin-bottom:20px;}
   .prep-line{margin-top:6px;}
-  .mistake-tips{margin:4px 0 10px;padding:8px 10px;border-radius:8px;background:var(--code-bg);font-size:14px;line-height:1.45;}
+  .mistake-tips{margin:4px 0 10px;padding:9px 13px;border-radius:12px;background:var(--code-bg);border-left:3px solid var(--blue);font-size:14.5px;line-height:1.5;color:var(--ink);}
   .mistake-tips div+div{margin-top:4px;}
   .retype{margin:10px 0 6px;padding:8px 10px;border:1px dashed var(--muted);border-radius:8px;}
   .retype .rt-title{font-size:13px;margin-bottom:6px;}
@@ -173,7 +173,8 @@
   .rt-input{flex:1;min-width:0;font:inherit;font-size:16px;padding:6px 8px;border-radius:6px;border:1px solid var(--muted);background:transparent;color:inherit;}
   .rt-input.ok{border-color:#3fb950;}
   .rt-input.bad{border-color:#f85149;}
-  .hook-box{margin:4px 0 10px;padding:8px 10px;border-radius:8px;border-left:3px solid var(--orange);background:var(--code-bg);font-size:14px;line-height:1.45;}
+  .hook-box{margin:4px 0 10px;padding:9px 13px 10px;border-radius:12px;border:1px dashed var(--banner-border);background:var(--orange-soft);font-size:15px;line-height:1.45;}
+  .hook-box .n-lbl{color:var(--orange-dark);}
   .hook-box textarea{display:block;width:100%;box-sizing:border-box;margin:6px 0;font:inherit;font-size:16px;padding:6px 8px;border-radius:6px;border:1px solid var(--muted);background:transparent;color:inherit;}
   .listen-modal{max-height:92vh;}
   .ls-help{font-size:14px;color:var(--muted);line-height:1.5;margin:4px 0 10px;}
@@ -293,8 +294,29 @@
   .example-line:first-child{margin-top:0;}
   .tense-tag{display:inline-block;font-style:normal;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
     color:var(--verb-fg);background:var(--verb-bg);border-radius:5px;padding:1px 6px;margin-right:6px;vertical-align:2px;min-width:78px;text-align:center;}
-  .note-line{display:block;margin-top:3px;line-height:1.45;}
-  .note-line:first-child{margin-top:0;}
+  /* Notes: hook box first, then labelled rows (label colour = category), register as tags */
+  .notes{display:flex;flex-direction:column;gap:7px;margin-top:12px;font-size:14.5px;line-height:1.5;color:var(--ink);}
+  .n-lbl{display:block;font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);line-height:1.9;}
+  .n-hook{padding:9px 13px 10px;border-radius:12px;background:var(--orange-soft);border:1px solid var(--banner-border);
+    font-size:15.5px;font-weight:500;line-height:1.45;color:var(--ink);}
+  .n-hook .n-lbl{color:var(--orange-dark);}
+  .n-row{display:grid;grid-template-columns:104px 1fr;column-gap:12px;align-items:baseline;}
+  .n-row .n-lbl{line-height:1.5;}
+  .n-gram .n-lbl{color:var(--blue);} .n-prep .n-lbl{color:var(--purple);} .n-warn .n-lbl{color:var(--red);}
+  .n-rel .n-lbl{color:var(--green);} .n-be .n-lbl{color:var(--warn);}
+  .n-em{color:var(--orange-dark);font-weight:650;}
+  .n-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:1px;}
+  .n-tag{font-size:11.5px;font-weight:500;padding:2px 9px;border-radius:999px;background:var(--line-soft);color:var(--muted);border:1px solid var(--line);}
+  .n-tag.pos{background:var(--green-bg);color:var(--green);border-color:var(--green-border);}
+  .n-tag.neg{background:var(--red-bg);color:var(--red);border-color:var(--red-border);}
+  .sentence-reveal .answerline .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;min-width:104px;margin-right:12px;}
+  .sentence-reveal .answerline .v{font-size:17px;}
+  @media (max-width:520px){ .sentence-reveal .answerline .k{display:block;min-width:0;margin:6px 0 0;} }
+  .ex-block{margin-top:12px;font-size:15px;line-height:1.5;color:var(--ink);}
+  .ex-block b{color:var(--orange-dark);font-weight:650;}
+  @media (max-width:520px){ .n-row{grid-template-columns:1fr;} .n-row > span:empty{display:none;} }
+  @media (prefers-color-scheme: dark){ :root:not(.theme-forced-light) .n-em, :root:not(.theme-forced-light) .ex-block b, :root:not(.theme-forced-light) .n-hook .n-lbl{color:var(--orange);} }
+  :root.theme-forced-dark .n-em, :root.theme-forced-dark .ex-block b, :root.theme-forced-dark .n-hook .n-lbl{color:var(--orange);}
   .tr-btn{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:6px;font:inherit;font-style:normal;
     font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 5px;margin-left:4px;cursor:pointer;vertical-align:2px;opacity:.7;transition:opacity .15s,border-color .15s,color .15s;}
   .tr-btn:hover{opacity:1;border-color:var(--orange);color:var(--orange-dark);}
@@ -696,7 +718,7 @@
         <button class="btn ghost" id="btnKnow" title="I already know this: never ask again, in any mode (Alt+K)">✓ Know it</button>
       </div>
       <div class="feedback" id="feedback"></div>
-      <div class="hintkey" id="hintKey">Tab to jump fields · Enter to check · Enter again for next · Alt+number for quick words</div>
+      <div class="hintkey" id="hintKey" hidden></div>
     </div>
   </div>
 
@@ -844,7 +866,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.1.2';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.2.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1526,7 +1548,8 @@ function renderChoosers(){
   tc.innerHTML = TYPE_CHIPS.map(c => chip('type', c, c[0] === typeFilter)).join('');
   mc.innerHTML = MODE_CHIPS.map(c => chip('mode', c, c[0] === mode)).join('');
   const m = MODE_CHIPS.find(c => c[0] === mode);
-  document.getElementById('modeDesc').textContent = m ? m[2] : '';
+  const md = document.getElementById('modeDesc'); if(md) md.hidden = true;   // explained in the App tour
+  mc.querySelectorAll('[data-mode]').forEach(b => { const d = MODE_CHIPS.find(c => c[0] === b.dataset.mode); if(d) b.title = d[2]; });
   const pickIn = (sel, v) => { const s = document.getElementById(sel); if(s.value === v) return; s.value = v; s.dispatchEvent(new Event('change')); renderChoosers(); };
   tc.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => pickIn('typeSel', b.dataset.type)));
   mc.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => pickIn('modeSel', b.dataset.mode)));
@@ -1947,7 +1970,7 @@ function renderArticleQuestion(w){
   setupCommonHeader(w, 'article');
   document.getElementById('promptText').className = 'prompt';
   document.getElementById('promptText').textContent = stripped;
-  document.getElementById('promptSub').textContent = `de or het? (D / H keys also work)`;
+  document.getElementById('promptSub').textContent = '';
   const fields = document.getElementById('fields');
   fields.innerHTML = `<div class="article-buttons">
     <button class="art-btn" type="button" data-art="de">de</button>
@@ -2000,7 +2023,7 @@ function renderSentenceQuestion(w){
   setupCommonHeader(w, 'sentence');
   document.getElementById('promptText').className = 'prompt sentence';
   document.getElementById('promptText').textContent = w.english || '—';
-  document.getElementById('promptSub').textContent = 'Translate in your head, then show the answer';
+  document.getElementById('promptSub').textContent = '';
   const fields = document.getElementById('fields');
   fields.innerHTML = `<div id="sntPhase1">
     <button class="snt-show-btn" type="button" id="sntShow">👁 Show answer <kbd>↵</kbd></button>
@@ -2018,8 +2041,8 @@ function revealSentence(){
   stopTiming();   // capture "thinking time" now; the grade buttons come later
   const sayable = (current.dutch || '').split(/[;/]/)[0].trim();
   const spk = sayable ? speakerBtn(sayable) : '';
-  const exampleHtml = current.example ? `<div class="answerline" style="color:var(--muted);font-style:italic;margin-top:6px"><span class="k">Example</span><span>${formatExample(current.example, current.exampleEn)}</span></div>` : '';
-  const noteHtml = current.notes ? `<div class="answerline" style="color:var(--muted);margin-top:4px"><span class="k">Note</span><span>${formatNotes(current.notes)}</span></div>` : '';
+  const exampleHtml = hookSection(current) + exampleSection(current);
+  const noteHtml = notesSection(current);
   document.getElementById('fields').innerHTML = `<div class="sentence-reveal">
     <div class="answerline"><span class="k">Translation</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk}</div>
     ${exampleHtml}${noteHtml}
@@ -2063,8 +2086,7 @@ function renderPrepositionQuestion(w){
   const phraseHtml = escapeHtml(w.phrase || '').replace(/_{2,}|___+/g,
     '<span class="prep-blank">___</span>');
   document.getElementById('promptSub').innerHTML =
-    `<div class="prep-phrase">${phraseHtml}</div>
-     <span style="color:var(--muted);font-size:.85em">Type only the preposition that fills the blank.</span>`;
+    `<div class="prep-phrase">${phraseHtml}</div>`;
   document.getElementById('fields').innerHTML = inputBlock('f_prep', 'Preposition', false);
   wireChips();
   const inp = document.getElementById('f_prep');
@@ -2110,8 +2132,8 @@ function renderFlashcardQuestion(w){
   document.getElementById('listTag').textContent = listTagText(w);
   document.getElementById('promptText').textContent = w.english || '—';
   document.getElementById('promptSub').textContent = w.type === 'preposition' && w.phrase
-    ? w.phrase.replace(/_{2,}/g, '___') + '  · which preposition?'
-    : 'Try to recall, then flip the card';
+    ? w.phrase.replace(/_{2,}/g, '___')
+    : '';
 
   document.getElementById('fields').innerHTML = `<div id="fcPhase1">
     <button class="snt-show-btn" type="button" id="fcShow">🃏 Show answer <kbd>↵</kbd></button>
@@ -2146,8 +2168,8 @@ function revealFlashcard(){
   } else if(current.type === 'sentence'){
     answerHtml += `<div class="answerline"><span class="k">Translation</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
   }
-  const exampleHtml = current.example ? `<div class="answerline" style="color:var(--muted);font-style:italic;margin-top:6px"><span class="k">Example</span><span>${formatExample(current.example, current.exampleEn)}</span></div>` : '';
-  const noteHtml    = current.notes   ? `<div class="answerline" style="color:var(--muted);margin-top:4px"><span class="k">Note</span><span>${formatNotes(current.notes)}</span></div>` : '';
+  const exampleHtml = hookSection(current) + exampleSection(current);
+  const noteHtml    = notesSection(current);
 
   document.getElementById('fields').innerHTML = `<div class="sentence-reveal">
     ${answerHtml}${exampleHtml}${noteHtml}
@@ -2318,10 +2340,11 @@ function next(forceWord){
   const alsoLines = [];
   if(englishPrompt && current.alsoEn) alsoLines.push('<b>also:</b> ' + escapeHtml(current.alsoEn));
   const nWords = englishPrompt && ['noun','verb','adjective'].includes(current.type) ? answerWordCount(current) : 0;
-  if(nWords > 1)
+  const fp = englishPrompt ? fixedPrepOf(current) : '';
+  if(fp) alsoLines.push('<b>answer:</b> ' + (current.type === 'verb' ? 'verb' : current.type === 'noun' ? 'noun' : 'word') + ' + <b class="n-em">preposition</b>');
+  else if(nWords > 1)
     alsoLines.push('<b>answer:</b> ' + nWords + ' words' + (current.type === 'noun' ? ' + article' : ''));
-  if(syns.length) alsoLines.push('<b>not:</b> ' + syns.map(x => escapeHtml(x.label)).join(' · ') +
-                                 ' <span class="also-why">(other words with this meaning)</span>');
+  if(syns.length) alsoLines.push('<b>not:</b> ' + syns.map(x => escapeHtml(x.label)).join(' · '));
   alsoEl.hidden = !alsoLines.length;
   alsoEl.innerHTML = alsoLines.join('<br>');
   synonymWarned = ''; shapeWarned = '';
@@ -2344,12 +2367,7 @@ function next(forceWord){
   document.getElementById('listTag').textContent = listTagText(current);
   document.getElementById('promptText').textContent = current.english || '—';
 
-  const subs = {
-    noun:'Type the article + noun in Dutch'+(current.plural?' (and the plural)':''),
-    verb:'Type the infinitive, perfectum and imperfectum',
-    adjective:'Type the adjective in Dutch'
-  };
-  document.getElementById('promptSub').textContent = subs[current.type]||'';
+  document.getElementById('promptSub').textContent = '';   // the field labels say what to type
 
   const fields = document.getElementById('fields');
   let html='';
@@ -2721,8 +2739,14 @@ function prepGloss(w, prep){
   }
   return '';
 }
+// The card's one fixed preposition when it is part of the answer ('wachten op' → 'op'), else ''
+function fixedPrepOf(w){
+  if(!w || !['verb','noun','adjective'].includes(w.type) || !w.prep || /[\/,;]/.test(w.prep)) return '';
+  const p = norm(w.prep), main = norm(altList(dutchOf(w))[0] || '').split(' ');
+  return main.length > 1 && main[main.length - 1] === p ? p : '';
+}
 function prepLineHtml(w){
-  if(!w || !['verb','noun','adjective'].includes(w.type)) return '';
+  if(!w || !['verb','noun','adjective'].includes(w.type) || fixedPrepOf(w)) return '';
   const preps = [...knownPreps(w)];
   if(!preps.length) return '';
   const parts = preps.map(p => { const g = prepGloss(w, p); return `<b>${p}</b>${g ? ` <span style="opacity:.75">(${escapeHtml(g)})</span>` : ''}`; });
@@ -2871,10 +2895,46 @@ function closestAccepted(userVal, accepted){
 const EX_TAG = /^\s*\[(pres|perf|imperf)\]\s*/i;
 const EX_TAG_LABEL = { pres:'present', perf:'perfectum', imperf:'imperfectum' };
 function stripExTag(s){ return String(s || '').replace(EX_TAG, ''); }
-// Notes: one short line per point (💡 ⚠️ 🔗 🇧🇪 🏷️ …), rendered as separate rows
-function formatNotes(s){
-  const lines = String(s || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  return lines.map(l => `<span class="note-line">${escapeHtml(l)}</span>`).join('');
+// Notes: one short line per point. In the word list each line starts with a category icon
+// (💡 hook · 🧩 grammar · 📌 preposition · ⚠️ watch out · 🔗 related · 🇧🇪 Belgium · 🏷️ register);
+// the app shows them as labelled, colour-coded rows instead: the memory hook first in a
+// highlighted box, the register line as small tags at the end.
+const NOTE_KINDS = [['💡', 'hook', 'Remember'], ['🧩', 'gram', 'Grammar'], ['📌', 'prep', 'Preposition'],
+  ['⚠️', 'warn', 'Watch out'], ['🔗', 'rel', 'Related'], ['🇧🇪', 'be', 'In Belgium'], ['🏷️', 'reg', '']];
+const NOTE_ORDER = ['hook', 'gram', 'prep', 'warn', 'rel', 'be', 'plain', 'reg'];
+const NOTE_ACRONYMS = new Set(['BE','NL','EU','UK','US','TV','LED','EHBO','CO2','MOT','CVO','NT2','OK','ID','GSM','PC','BTW','KBC','NMBS','RIZIV','CEO','FR','EN','DE','PS','AI']);
+// Dutch words written in capitals for emphasis ("denken AAN", "PECH sounds like…") → accent, lower case
+function noteInline(t){
+  return escapeHtml(t).replace(/(?<![\p{L}\d])\p{Lu}[\p{Lu}\-]*\p{Lu}(?![\p{L}\d])/gu,
+    m => NOTE_ACRONYMS.has(m) ? m : `<b class="n-em">${m.toLowerCase()}</b>`);
+}
+function noteTags(t){
+  return t.replace(/\.\s*$/, '').split('·').map(x => x.trim()).filter(Boolean).map(x => {
+    const tone = /negative/i.test(x) ? 'neg' : /positive/i.test(x) ? 'pos' : '';
+    if(!tone && /^neutral$/i.test(x)) return '';               // neutral tone: nothing to flag
+    return `<span class="n-tag ${tone}">${escapeHtml(x.replace(/\s+register\b/i, ''))}</span>`;
+  }).join('');
+}
+function formatNotes(s, part = 'all'){   // part: 'all' | 'hook' (hook only) | 'rest' (all but the hook)
+  let rows = String(s || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const k = NOTE_KINDS.find(([icon]) => l.startsWith(icon));
+    return k ? { kind: k[1], label: k[2], text: l.slice(k[0].length).replace(/^[\s️]+/, '') }
+             : { kind: 'plain', label: '', text: l };
+  });
+  rows.sort((a, b) => NOTE_ORDER.indexOf(a.kind) - NOTE_ORDER.indexOf(b.kind));
+  if(part === 'hook') rows = rows.filter(r => r.kind === 'hook');
+  if(part === 'rest') rows = rows.filter(r => r.kind !== 'hook');
+  const tags = rows.filter(r => r.kind === 'reg').map(r => noteTags(r.text)).join('');
+  return rows.filter(r => r.kind !== 'reg').map(r => r.kind === 'hook'
+      ? `<div class="n-hook"><span class="n-lbl">Remember</span>${noteInline(r.text)}</div>`
+      : `<div class="n-row n-${r.kind}">${r.label ? `<span class="n-lbl">${r.label}</span>` : '<span></span>'}<span class="n-txt">${noteInline(r.text)}</span></div>`
+    ).join('') + (tags ? `<div class="n-tags">${tags}</div>` : '');
+}
+// After an answer: the memory hook right under the answer, the other notes after the examples
+function hookSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'hook') : ''; return h ? `<div class="notes">${h}</div>` : ''; }
+function notesSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'rest') : ''; return h ? `<div class="notes">${h}</div>` : ''; }
+function exampleSection(w){
+  return w && w.example ? `<div class="ex-block"><span class="n-lbl">${String(w.example).includes('\n') ? 'Examples' : 'Example'}</span>${formatExample(w.example, w.exampleEn)}</div>` : '';
 }
 function formatExample(s, en){
   if(!s) return '';
@@ -3242,9 +3302,9 @@ function showHint(){
     const target = current[currentVerbField] || '';
     if(currentVerbField === 'perfectum'){
       const aux = perfAux(target);
-      html = aux ? `💡 Auxiliary: <b>${escapeHtml(aux)}</b>` : `💡 Starts with: <b>${escapeHtml(target.slice(0,2))}…</b>`;
+      html = aux ? `Auxiliary: <b>${escapeHtml(aux)}</b>` : `Starts with: <b>${escapeHtml(target.slice(0,2))}…</b>`;
     } else {
-      html = `💡 Starts with: <b>${escapeHtml(target.slice(0,2))}…</b>`;
+      html = `Starts with: <b>${escapeHtml(target.slice(0,2))}…</b>`;
     }
     document.getElementById('hintArea').innerHTML = `<span class="hint-msg">${html}</span>`;
     const b = document.getElementById('btnHint'); if(b){ b.disabled = true; b.style.opacity = '0.5'; }
@@ -3252,28 +3312,28 @@ function showHint(){
   }
   if(currentSubmode === 'cloze'){
     const t = currentClozeTarget;
-    html = `💡 Starts with: <b>${escapeHtml(t.slice(0, Math.min(2, t.length)))}…</b>`;
+    html = `Starts with: <b>${escapeHtml(t.slice(0, Math.min(2, t.length)))}…</b>`;
     document.getElementById('hintArea').innerHTML = `<span class="hint-msg">${html}</span>`;
     const b = document.getElementById('btnHint'); if(b){ b.disabled = true; b.style.opacity = '0.5'; }
     return;
   }
   if(current.type === 'noun'){
     const m = (current.dutch || '').match(/^(de|het|een)\s/i);
-    if(m) html = `💡 Article: <b>${m[1].toLowerCase()}</b>`;
+    if(m) html = `Article: <b>${m[1].toLowerCase()}</b>`;
     else {
       const s = stripArticle(current.dutch || '');
-      html = `💡 Starts with: <b>${escapeHtml(s.slice(0, Math.min(2, s.length)))}…</b>`;
+      html = `Starts with: <b>${escapeHtml(s.slice(0, Math.min(2, s.length)))}…</b>`;
     }
   } else if(current.type === 'verb'){
     const aux = perfAux(current.perfectum);
     if(aux){
-      html = `💡 Perfectum auxiliary: <b>${escapeHtml(aux)}</b>`;
+      html = `Perfectum auxiliary: <b>${escapeHtml(aux)}</b>`;
     } else {
-      html = `💡 Infinitive starts with: <b>${escapeHtml((current.infinitive||'').slice(0,2))}…</b>`;
+      html = `Infinitive starts with: <b>${escapeHtml((current.infinitive||'').slice(0,2))}…</b>`;
     }
   } else {
     const first = (current.dutch || '').split(/[;/]/)[0].trim();
-    html = `💡 Starts with: <b>${escapeHtml(first.slice(0, Math.min(2, first.length)))}…</b>`;
+    html = `Starts with: <b>${escapeHtml(first.slice(0, Math.min(2, first.length)))}…</b>`;
   }
   document.getElementById('hintArea').innerHTML = `<span class="hint-msg">${html}</span>`;
   const b = document.getElementById('btnHint');
@@ -3534,10 +3594,10 @@ function retypeEnter(el){
 }
 function hookHtml(w, ok){
   const p = progress[w.id] || {};
-  if(p.hook) return `<div class="hook-box" id="hookBox">🪝 <b>Your hook:</b> <span id="hookText">${escapeHtml(p.hook)}</span> <button class="linkbtn" id="hookEdit" type="button">edit</button></div>`;
+  if(p.hook) return `<div class="hook-box" id="hookBox"><span class="n-lbl">Your hook</span><span id="hookText">${escapeHtml(p.hook)}</span> <button class="linkbtn" id="hookEdit" type="button">edit</button></div>`;
   // Any card: a small link to add a hook whenever you like. Problem words (missed 3+ times) ask for one.
-  if(ok || !isProblem(w)) return `<div class="hook-add" id="hookBox"><button class="linkbtn" id="hookAdd" type="button">🪝 Add your own hook</button></div>`;
-  return `<div class="hook-box ask" id="hookBox">🩹 <b>You've missed this ${p.lapses} times.</b> Write your own hook or sentence. Vivid, funny or about your own life works best.`+
+  if(ok || !isProblem(w)) return `<div class="hook-add" id="hookBox"><button class="linkbtn" id="hookAdd" type="button">+ Add your own hook</button></div>`;
+  return `<div class="hook-box ask" id="hookBox"><span class="n-lbl">Missed ${p.lapses} times</span>Write your own hook: a funny image or something from your own life.`+
          `<textarea id="hookInput" rows="2" placeholder="e.g. voor also means “in front of”: you feel ashamed in front of others"></textarea>`+
          `<button class="btn ghost" id="hookSave" type="button">Save hook</button></div>`;
 }
@@ -3548,7 +3608,7 @@ function saveHook(text){
   save();
   const box = document.getElementById('hookBox');
   if(box){ box.outerHTML = hookHtml(current, true) || ''; wireHook(); }
-  toast(p.hook ? '🪝 Hook saved. You’ll see it on this word from now on.' : 'Hook removed.');
+  toast(p.hook ? 'Hook saved. You’ll see it on this word from now on.' : 'Hook removed.');
 }
 function wireHook(){
   const s = document.getElementById('hookSave'), inp = document.getElementById('hookInput');
@@ -3558,7 +3618,7 @@ function wireHook(){
     const box = document.getElementById('hookBox');
     const cur = (progress[current.id] || {}).hook || '';
     box.className = 'hook-box ask';
-    box.innerHTML = `🪝 <b>Your hook</b>${cur ? ' (empty = remove)' : ': a vivid link, a funny image or a sentence about your own life'}:<textarea id="hookInput" rows="2">${escapeHtml(cur)}</textarea><button class="btn ghost" id="hookSave" type="button">Save hook</button>`;
+    box.innerHTML = `<span class="n-lbl">Your hook${cur ? ' · empty = remove' : ''}</span><textarea id="hookInput" rows="2">${escapeHtml(cur)}</textarea><button class="btn ghost" id="hookSave" type="button">Save hook</button>`;
     wireHook();
     document.getElementById('hookInput').focus();
   });
@@ -3654,15 +3714,14 @@ function showFeedback(ok, items){
     }
   }
   // Example sentence (from Voorbeeldzin column) — shown when present
-  const ex = current.example ? `<div class="answerline" style="margin-top:8px;color:var(--muted);font-style:italic"><span class="k">Example</span><span>${formatExample(current.example, current.exampleEn)}</span></div>` : '';
-  const notes = prepLineHtml(current) +
-    (current.notes ? `<div class="answerline" style="margin-top:4px;color:var(--muted)"><span class="k">Note</span><span>${formatNotes(current.notes)}</span></div>` : '');
+  const ex = hookSection(current) + exampleSection(current);
+  const notes = prepLineHtml(current) + notesSection(current);
   const dot = (current ? speedDot(current.type, lastTimingMs) : '');
   const typoBtn = (!ok && lastGraded && current && lastGraded.id === current.id && !lastGraded.ok && !lastGraded.gaveUp && TYPO_UNDO_MODES.has(currentSubmode))
     ? `<button class="btn ghost typo-btn" id="btnTypo" type="button" title="Restore this word's progress and count the answer as correct (Hard)">↩ It was a typo, count it</button>` : '';
   const typed = TYPO_UNDO_MODES.has(currentSubmode);
   const tips = (!ok && typed && !(lastGraded && lastGraded.gaveUp)) ? mistakeTips(items || [], current) : [];
-  const tipsHtml = tips.length ? `<div class="mistake-tips">${tips.map(t => `<div>💡 ${t}</div>`).join('')}</div>` : '';
+  const tipsHtml = tips.length ? `<div class="mistake-tips">${tips.map(t => `<div>${t}</div>`).join('')}</div>` : '';
   const retype = (!ok && typed && !(lastGraded && lastGraded.gaveUp)) ? retypeHtml(items || []) : '';
   const hook = (current && current.type !== 'sentence') ? hookHtml(current, ok) : '';
   fb.innerHTML = `<h4>${ok ? '✓ Correct!' : '✗ Not quite'}${dot}</h4>${typoBtn}${hook}${tipsHtml}${lines}${retype}${ex}${notes}`;
@@ -4055,7 +4114,7 @@ function renderWordDetail(w){
     line('Also means', escapeHtml(w.alsoEn || ''))+
     line('Preposition', escapeHtml(w.prep || '') + (w.prepMeanings ? ` <span style="opacity:.7">(${escapeHtml(w.prepMeanings)})</span>` : ''))+
     line('Synonyms', escapeHtml(w.syn || ''))+
-    line('Notes', w.notes ? formatNotes(w.notes) : '')+
+    (w.notes ? `<div class="wl-card-notes">${formatNotes(w.notes)}</div>` : '')+
     line('Example', w.example ? formatExample(w.example, w.exampleEn) : '')+
     line('Flashcard', fc ? (fc.ivl ? 'back ' + fmtDueIn(fc.due) : 'marked “didn’t know” — coming back soon') : '')+
     `</div>`;
@@ -4181,7 +4240,7 @@ document.getElementById('wlJump').addEventListener('keydown', e=>{
 /* ---------- platform-specific labels (⌥ on Mac, Alt elsewhere) ---------- */
 function applyPlatformLabels(){
   const hk=document.getElementById('hintKey');
-  if(hk) hk.textContent = `Tab to jump fields · Enter to check · Enter again for next · ${OPT}+number for quick words`;
+  if(hk) hk.hidden = true;   // keyboard shortcuts are in the App tour
   const rv=document.getElementById('btnReveal'); if(rv) rv.title = `Reveal answer (${OPT}+R)`;
   const kn=document.getElementById('btnKnow'); if(kn) kn.title = `I already know this — never ask again (${OPT}+K)`;
   if(IS_MAC) document.querySelectorAll('#shortcutsModal kbd.mod').forEach(k=>{ k.textContent='⌥'; });
@@ -4762,13 +4821,15 @@ const TOUR_STEPS = [
   ['📚', 'Choose what to practise', `<p>Tap the <b>Practising</b> box at the top to pick a thema or list, or combine several lists.</p>
      <p>Under <b>Words</b> you can narrow it down to nouns, verbs, adjectives or prepositions.</p>`],
   ['🎯', 'Five ways to practise', `<ul><li><b>✍️ Type it</b>: the main mode. See the English, type the Dutch.</li>
-     <li><b>🃏 Flip cards</b>: think, flip, and say if you knew it.</li>
+     <li><b>🃏 Flip cards</b>: think of the answer, flip, and say if you knew it. Cards you knew come back days later; it has its own schedule.</li>
      <li><b>de / het</b>: articles only.</li><li><b>Verb forms</b>: perfectum and imperfectum.</li>
      <li><b>Fill the gap</b>: complete a real sentence.</li></ul>`],
-  ['✍️', 'When you answer', `<ul><li>Press <b>Enter</b> to check. <b>Hint</b> and <b>Reveal</b> help when you're stuck.</li>
+  ['✍️', 'When you answer', `<ul><li>Press <b>Enter</b> to check, and <b>Enter</b> again for the next card. <b>Hint</b> and <b>Reveal</b> help when you're stuck.</li>
+     <li>When the answer needs a preposition (<i>wachten <b>op</b></i>), the card says <b>answer: verb + preposition</b>.</li>
+     <li>On a computer: <b>Tab</b> jumps between fields, <b>Alt/⌥ + number</b> types the quick words, <b>D</b> / <b>H</b> answer de / het.</li>
      <li>Made a small typo? Tap <b>“↩ It was a typo, count it”</b> so it doesn't count as wrong.</li>
      <li>Wrong answers come back after about 10 minutes, and again on later days.</li>
-     <li>Keep forgetting a word? Tap <b>🪝 Add your own hook</b> under the answer and write a memory trick.</li></ul>`],
+     <li>Keep forgetting a word? Tap <b>+ Add your own hook</b> under the answer and write a memory trick.</li></ul>`],
   ['☰', 'More in the menu', `<ul><li><b>📋 Word list</b>: every word with its number, notes, examples and your progress.</li>
      <li><b>🎧 Listening exam</b>: NT2-style listening tasks, played twice, like in the real exam.</li>
      <li><b>⚙ Settings</b>: daily goal, new words per day, voice and theme.</li></ul>`],
