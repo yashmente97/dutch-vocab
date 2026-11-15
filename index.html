@@ -312,11 +312,14 @@
   .sentence-reveal .answerline .k{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;min-width:104px;margin-right:12px;}
   .sentence-reveal .answerline .v{font-size:17px;}
   @media (max-width:520px){ .sentence-reveal .answerline .k{display:block;min-width:0;margin:6px 0 0;} }
+  .past-prep{color:var(--orange-dark);font-weight:600;opacity:.9;}
   .ex-block{margin-top:12px;font-size:15px;line-height:1.5;color:var(--ink);}
   .ex-block b{color:var(--orange-dark);font-weight:650;}
   @media (max-width:520px){ .n-row{grid-template-columns:1fr;} .n-row > span:empty{display:none;} }
   @media (prefers-color-scheme: dark){ :root:not(.theme-forced-light) .n-em, :root:not(.theme-forced-light) .ex-block b, :root:not(.theme-forced-light) .n-hook .n-lbl{color:var(--orange);} }
   :root.theme-forced-dark .n-em, :root.theme-forced-dark .ex-block b, :root.theme-forced-dark .n-hook .n-lbl{color:var(--orange);}
+  @media (prefers-color-scheme: dark){ :root:not(.theme-forced-light) .past-prep{color:var(--orange);} }
+  :root.theme-forced-dark .past-prep{color:var(--orange);}
   .tr-btn{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:6px;font:inherit;font-style:normal;
     font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 5px;margin-left:4px;cursor:pointer;vertical-align:2px;opacity:.7;transition:opacity .15s,border-color .15s,color .15s;}
   .tr-btn:hover{opacity:1;border-color:var(--orange);color:var(--orange-dark);}
@@ -866,7 +869,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.2.0';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.2.1';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -2158,8 +2161,8 @@ function revealFlashcard(){
     }
   } else if(current.type === 'verb'){
     if(current.infinitive)  answerHtml += `<div class="answerline"><span class="k">Infinitive</span><span class="v">${escapeHtml(current.infinitive)}</span> ${spk(current.infinitive)}</div>`;
-    if(current.perfectum)   answerHtml += `<div class="answerline"><span class="k">Perfectum</span><span class="v">${escapeHtml(current.perfectum)}</span> ${spk(current.perfectum)}</div>`;
-    if(current.imperfectum) answerHtml += `<div class="answerline"><span class="k">Imperfectum</span><span class="v">${escapeHtml(current.imperfectum)}</span> ${spk(current.imperfectum)}</div>`;
+    if(current.perfectum)   answerHtml += `<div class="answerline"><span class="k">Perfectum</span><span class="v">${escapeHtml(current.perfectum)}${pastPrepHtml(current, 'perfectum')}</span> ${spk(current.perfectum)}</div>`;
+    if(current.imperfectum) answerHtml += `<div class="answerline"><span class="k">Imperfectum</span><span class="v">${escapeHtml(current.imperfectum)}${pastPrepHtml(current, 'imperfectum')}</span> ${spk(current.imperfectum)}</div>`;
   } else if(current.type === 'adjective'){
     answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
   } else if(current.type === 'preposition'){
@@ -2669,6 +2672,9 @@ function phraseShapeIssue(field, userVal, w){
   const matcher = field === 'perfectum' ? matchPerfectum : field === 'imperfectum' ? matchImperfectum : matchSimple;
   const cell = w[field];
   if(!String(userVal || '').trim() || matcher(userVal, cell)) return null;
+  // Fixed preposition that only the infinitive carries ('genieten van' / 'hebben genoten')
+  const fp = field === 'infinitive' ? fixedPrepOf(w) : '';
+  if(fp && matcher(userVal, dropFromCell(cell, [fp]))) return 'prep';
   const extras = fixedExtras(w);
   const preps = extras.filter(t => PREPS.has(t));
   // Only the preposition missing ("zich schamen" for "zich schamen voor") → 'prep'
@@ -2744,6 +2750,12 @@ function fixedPrepOf(w){
   if(!w || !['verb','noun','adjective'].includes(w.type) || !w.prep || /[\/,;]/.test(w.prep)) return '';
   const p = norm(w.prep), main = norm(altList(dutchOf(w))[0] || '').split(' ');
   return main.length > 1 && main[main.length - 1] === p ? p : '';
+}
+// Past forms of a verb with a fixed preposition: shown as 'hebben genoten (van)', never required
+// (in a sentence the van-phrase usually moves: 'Ik heb van het feest genoten').
+function pastPrepHtml(w, field){
+  const p = w && w.type === 'verb' ? fixedPrepOf(w) : '';
+  return p && /perfectum/i.test(field || '') ? ` <span class="past-prep">(${p})</span>` : '';
 }
 function prepLineHtml(w){
   if(!w || !['verb','noun','adjective'].includes(w.type) || fixedPrepOf(w)) return '';
@@ -3687,6 +3699,7 @@ function recordResult(ok, opts){
 
 function showFeedback(ok, items){
   feedbackShown = true;
+  if(ok){ const ha = document.getElementById('hintArea'); if(ha) ha.innerHTML = ''; }   // an "Almost!" nudge is done once it's right
   const fb = document.getElementById('feedback');
   fb.className = 'feedback show ' + (ok ? 'correct' : 'wrong');
   // Build per-field lines: ok rows just show canonical answer; wrong rows show diff (your vs need)
@@ -3695,7 +3708,7 @@ function showFeedback(ok, items){
     const sayable = (it.canon || '').split(/[;/]/)[0].trim();
     const spk = sayable ? speakerBtn(sayable) : '';
     if(it.ok){
-      lines += `<div class="answerline"><span class="k">${it.fieldName}</span><span class="v">${escapeHtml(it.canon)}</span>${spk}</div>`;
+      lines += `<div class="answerline"><span class="k">${it.fieldName}</span><span class="v">${escapeHtml(it.canon)}${pastPrepHtml(current, it.fieldName)}</span>${spk}</div>`;
     } else {
       const target = it.canonicalForms ? closestAccepted(it.userVal, it.canonicalForms) : it.canon;
       const d = renderDiff(it.userVal, target);
@@ -3707,7 +3720,7 @@ function showFeedback(ok, items){
         ? `<div class="diff-line" style="margin-left:96px">
              <span style="opacity:.55">any of: </span>${forms.map(f=>`<code style="background:var(--code-bg);padding:1px 6px;border-radius:4px;margin-right:4px">${escapeHtml(f)}</code>`).join('')}
            </div>`
-        : `<div class="diff-line" style="margin-left:96px"><span style="opacity:.55">need: </span>${d.correct}</div>`;
+        : `<div class="diff-line" style="margin-left:96px"><span style="opacity:.55">need: </span>${d.correct}${pastPrepHtml(current, it.fieldName)}</div>`;
       lines += `<div class="answerline" style="display:block"><div><span class="k">${it.fieldName}</span>${spk}</div>`+
                `<div class="diff-line" style="margin-left:96px;margin-top:2px"><span style="opacity:.55">your: </span>${yours}</div>`+
                `${needBlock}</div>`;
