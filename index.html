@@ -869,7 +869,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.2.2';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.2.3';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -2157,7 +2157,7 @@ function revealFlashcard(){
   if(current.type === 'noun'){
     answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${mainAnswerHtml(current, current.dutch)}</span> ${spk(current.dutch)}</div>`;
     if(current.plural){
-      answerHtml += `<div class="answerline"><span class="k">Plural</span><span class="v">${escapeHtml(current.plural)}</span> ${spk(current.plural)}</div>`;
+      answerHtml += `<div class="answerline"><span class="k">Plural</span><span class="v">${escapeHtml(current.plural)}${pastPrepHtml(current, 'plural')}</span> ${spk(current.plural)}</div>`;
     }
   } else if(current.type === 'verb'){
     if(current.infinitive)  answerHtml += `<div class="answerline"><span class="k">Infinitive</span><span class="v">${mainAnswerHtml(current, current.infinitive)}</span> ${spk(current.infinitive)}</div>`;
@@ -2622,7 +2622,7 @@ function collectAndGrade(){
                  canonicalForms: altList(current.dutch), fieldName: 'Dutch', canon: current.dutch, isSimple: true });
     if(current.plural){
       const b = document.getElementById('f_plural');
-      items.push({ fieldEl: b, ok: matchSimple(b.value, current.plural), userVal: b.value,
+      items.push({ fieldEl: b, ok: okWithKnownPrep(matchSimple, b.value, current.plural), userVal: b.value,
                    canonicalForms: altList(current.plural), fieldName: 'Plural', canon: current.plural, isSimple: true });
     }
   } else if(current.type === 'verb'){
@@ -2753,9 +2753,11 @@ function fixedPrepOf(w){
 }
 // Past forms of a verb with a fixed preposition: shown as 'hebben genoten (van)', never required
 // (in a sentence the van-phrase usually moves: 'Ik heb van het feest genoten').
+// Same for a noun's plural: 'de uitzichten (op)'.
 function pastPrepHtml(w, field){
-  const p = w && w.type === 'verb' ? fixedPrepOf(w) : '';
-  return p && /perfectum/i.test(field || '') ? ` <span class="past-prep">(${p})</span>` : '';
+  const p = fixedPrepOf(w);
+  const show = w && ((w.type === 'verb' && /perfectum/i.test(field || '')) || (w.type === 'noun' && /^plural$/i.test(field || '')));
+  return p && show ? ` <span class="past-prep">(${p})</span>` : '';
 }
 // The main answer with its fixed preposition in the accent colour ('zich voorbereiden <op>'),
 // the same colour as the optional '(op)' after the past forms.
@@ -2933,7 +2935,11 @@ function noteTags(t){
     return `<span class="n-tag ${tone}">${escapeHtml(x.replace(/\s+register\b/i, ''))}</span>`;
   }).join('');
 }
-function formatNotes(s, part = 'all'){   // part: 'all' | 'hook' (hook only) | 'rest' (all but the hook)
+function formatNotes(s, part = 'all', w = null){
+  const cardPreps = w ? [...knownPreps(w)] : [];
+  const prepInline = t => cardPreps.length
+    ? noteInline(t).replace(new RegExp(`(?<![\\p{L}>])(${cardPreps.join('|')})(?![\\p{L}<])`, 'giu'), '<b class="n-em">$1</b>')
+    : noteInline(t);   // part: 'all' | 'hook' (hook only) | 'rest' (all but the hook)
   let rows = String(s || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
     const k = NOTE_KINDS.find(([icon]) => l.startsWith(icon));
     return k ? { kind: k[1], label: k[2], text: l.slice(k[0].length).replace(/^[\s️]+/, '') }
@@ -2945,12 +2951,12 @@ function formatNotes(s, part = 'all'){   // part: 'all' | 'hook' (hook only) | '
   const tags = rows.filter(r => r.kind === 'reg').map(r => noteTags(r.text)).join('');
   return rows.filter(r => r.kind !== 'reg').map(r => r.kind === 'hook'
       ? `<div class="n-hook"><span class="n-lbl">Remember</span>${noteInline(r.text)}</div>`
-      : `<div class="n-row n-${r.kind}">${r.label ? `<span class="n-lbl">${r.label}</span>` : '<span></span>'}<span class="n-txt">${noteInline(r.text)}</span></div>`
+      : `<div class="n-row n-${r.kind}">${r.label ? `<span class="n-lbl">${r.label}</span>` : '<span></span>'}<span class="n-txt">${r.kind === 'prep' ? prepInline(r.text) : noteInline(r.text)}</span></div>`
     ).join('') + (tags ? `<div class="n-tags">${tags}</div>` : '');
 }
 // After an answer: the memory hook right under the answer, the other notes after the examples
-function hookSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'hook') : ''; return h ? `<div class="notes">${h}</div>` : ''; }
-function notesSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'rest') : ''; return h ? `<div class="notes">${h}</div>` : ''; }
+function hookSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'hook', w) : ''; return h ? `<div class="notes">${h}</div>` : ''; }
+function notesSection(w){ const h = w && w.notes ? formatNotes(w.notes, 'rest', w) : ''; return h ? `<div class="notes">${h}</div>` : ''; }
 function exampleSection(w){
   return w && w.example ? `<div class="ex-block"><span class="n-lbl">${String(w.example).includes('\n') ? 'Examples' : 'Example'}</span>${formatExample(w.example, w.exampleEn)}</div>` : '';
 }
@@ -4133,7 +4139,7 @@ function renderWordDetail(w){
     line('Also means', escapeHtml(w.alsoEn || ''))+
     line('Preposition', escapeHtml(w.prep || '') + (w.prepMeanings ? ` <span style="opacity:.7">(${escapeHtml(w.prepMeanings)})</span>` : ''))+
     line('Synonyms', escapeHtml(w.syn || ''))+
-    (w.notes ? `<div class="wl-card-notes">${formatNotes(w.notes)}</div>` : '')+
+    (w.notes ? `<div class="wl-card-notes">${formatNotes(w.notes, 'all', w)}</div>` : '')+
     line('Example', w.example ? formatExample(w.example, w.exampleEn) : '')+
     line('Flashcard', fc ? (fc.ivl ? 'back ' + fmtDueIn(fc.due) : 'marked “didn’t know” — coming back soon') : '')+
     `</div>`;
@@ -4174,7 +4180,7 @@ function browseBase(){
 const STATUS_DEFS = [['all','All'],['new','New'],['learning','Learning'],['needs','Needs practice'],['known','Known'],['mastered','Mastered'],['problem','🩹 Problem words']];
 function answerSummary(w){
   if(w.type==='verb') return `${mainAnswerHtml(w, w.infinitive)} · ${escapeHtml(w.perfectum)}${pastPrepHtml(w, 'perfectum')} · ${escapeHtml(w.imperfectum)}${pastPrepHtml(w, 'imperfectum')}`;
-  if(w.type==='noun') return mainAnswerHtml(w, w.dutch)+(w.plural?` <span style="opacity:.6">/ ${escapeHtml(w.plural)}</span>`:'');
+  if(w.type==='noun') return mainAnswerHtml(w, w.dutch)+(w.plural?` <span style="opacity:.6">/ ${escapeHtml(w.plural)}</span>${pastPrepHtml(w, 'plural')}`:'');
   return mainAnswerHtml(w, w.dutch);
 }
 function openList(){
