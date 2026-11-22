@@ -320,6 +320,9 @@
   :root.theme-forced-dark .n-em, :root.theme-forced-dark .ex-block b, :root.theme-forced-dark .n-hook .n-lbl{color:var(--orange);}
   @media (prefers-color-scheme: dark){ :root:not(.theme-forced-light) .past-prep{color:var(--orange);} }
   :root.theme-forced-dark .past-prep{color:var(--orange);}
+  @media (prefers-color-scheme: dark){ :root:not(.theme-forced-light) .prep-blank.filled{color:var(--orange);} }
+  @media (max-width:520px){ .prompt.prep-key{font-size:28px;} .prep-context{font-size:16px;} }
+  :root.theme-forced-dark .prep-blank.filled{color:var(--orange);}
   .tr-btn{border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:6px;font:inherit;font-style:normal;
     font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 5px;margin-left:4px;cursor:pointer;vertical-align:2px;opacity:.7;transition:opacity .15s,border-color .15s,color .15s;}
   .tr-btn:hover{opacity:1;border-color:var(--orange);color:var(--orange-dark);}
@@ -351,6 +354,19 @@
   .typebadge.sentence{background:var(--sent-bg);color:var(--sent-fg);}
   .typebadge.preposition{background:var(--verb-bg);color:var(--verb-fg);}
   .prep-phrase{font-size:22px;line-height:1.6;font-weight:500;margin:8px 0 6px;color:var(--ink);}
+  .prompt.prep-prompt{font-size:28px;font-weight:600;line-height:1.45;letter-spacing:-.2px;}
+  .prep-prompt .prep-blank{display:inline-block;min-width:64px;margin:0 2px;border-bottom:3px solid var(--orange);line-height:1.1;text-align:center;}
+  .prep-prompt .prep-blank.filled{color:var(--orange-dark);border-bottom-color:transparent;min-width:0;padding:0 2px;}
+  .prep-hint{font-style:italic;}
+  .prompt.prep-key{font-size:34px;}
+  .prep-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;margin-top:2px;}
+  .prep-kind{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 9px;border-radius:999px;border:1px solid var(--line);}
+  .prep-kind.fixed{color:var(--purple);background:var(--purple-bg);border-color:transparent;}
+  .prep-kind.expr{color:var(--blue);background:var(--noun-bg);border-color:transparent;}
+  .prep-kind.free{color:var(--muted);background:var(--line-soft);}
+  .prep-context{font-size:18px;line-height:1.5;color:var(--ink);margin-top:12px;}
+  .prep-context .prep-blank{display:inline-block;min-width:44px;margin:0 2px;border-bottom:2px solid var(--orange);line-height:1.1;text-align:center;}
+  .prep-context .prep-blank.filled{color:var(--orange-dark);border-bottom-color:transparent;min-width:0;font-weight:600;}
   .prep-phrase .prep-blank{display:inline-block;min-width:60px;padding:0 8px;background:var(--orange-soft);
     color:var(--orange-dark);border-radius:6px;font-weight:700;letter-spacing:2px;text-align:center;}
   .sentence-buttons{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px;}
@@ -578,6 +594,7 @@
     .pf-head{padding:12px 8px;}
     .picker-tree{max-height:58vh;}
     .prompt{font-size:26px;}
+    .prompt.prep-prompt{font-size:22px;}
     .field input{font-size:17px;padding:14px 13px;}
     .actions{flex-wrap:wrap;}
     .actions .btn{flex:1 1 auto;justify-content:center;}
@@ -870,7 +887,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.3.0';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.4.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1427,8 +1444,12 @@ function parseWorkbook(wb){
         if(!eng && !phrase) return;
         // dutch = full sentence (blank filled), for display / audio
         const dutch = phrase.replace(/_{2,}|___+/g, answer);
+        // 'Key word' (uitzicht, zich ergeren) and 'Kind' (vaste prepositie / vaste uitdrukking / betekenis)
+        const keyI = headers.findIndex(h => /^key\s*word$/i.test(String(h||'').trim()));
+        const kindI = headers.findIndex(h => /^kind$/i.test(String(h||'').trim()));
         out.push({type, folder, list:get(ci.list)||'General', english:eng,
-          phrase, answer, dutch, notes:get(ci.notes), example:get(ci.example), exampleEn:get(ci.exampleEn), alsoEn:get(ci.alsoEn)});
+          phrase, answer, dutch, notes:get(ci.notes), example:get(ci.example), exampleEn:get(ci.exampleEn), alsoEn:get(ci.alsoEn),
+          key:get(keyI), kind:get(kindI)});
       }else{
         const du = get(ci.dutch);
         if(!eng && !du) return;
@@ -2092,19 +2113,33 @@ function renderPrepositionQuestion(w){
   document.getElementById('typeBadge').className = 'typebadge preposition';
   document.getElementById('typeBadge').textContent = 'preposition';
   document.getElementById('listTag').textContent = listTagText(w);
-  // Show English prompt + cloze phrase together
-  document.getElementById('promptText').innerHTML = escapeHtml(w.english || '—');
-  // Build the phrase with a visible blank the user fills in below
-  const phraseHtml = escapeHtml(w.phrase || '').replace(/_{2,}|___+/g,
-    '<span class="prep-blank">___</span>');
-  document.getElementById('promptSub').innerHTML =
-    `<div class="prep-phrase">${phraseHtml}</div>`;
+  prepPromptSet(w);
   document.getElementById('fields').innerHTML = inputBlock('f_prep', 'Preposition', false);
   wireChips();
   const inp = document.getElementById('f_prep');
   if(inp){ inp.setAttribute('autocomplete','off'); inp.focus(); }
 }
 
+// Preposition cards: the Dutch sentence with its gap IS the question; the English meaning is a
+// small hint. On the answer the gap fills in place (orange) — the sentence isn't repeated.
+const PREP_KINDS = { 'vaste prepositie': ['fixed', 'vaste prepositie'], 'vaste uitdrukking': ['expr', 'vaste uitdrukking'],
+                     'betekenis': ['free', 'geen vaste prepositie'] };   // place / direction / means: chosen by meaning
+function prepBlanked(text){ return escapeHtml(text || '').replace(/_{2,}|___+/g, '<span class="prep-blank">&nbsp;</span>'); }
+function prepPromptSet(w){
+  const pt = document.getElementById('promptText');
+  pt.className = 'prompt prep-prompt' + (w.key ? ' prep-key' : '');
+  // the key word is the question ("uitzicht ___"); the sentence below shows it in use
+  pt.innerHTML = w.key ? `${escapeHtml(w.key)} <span class="prep-blank">&nbsp;</span>` : prepBlanked(w.phrase || w.english);
+  const k = PREP_KINDS[(w.kind || '').toLowerCase()];
+  document.getElementById('promptSub').innerHTML =
+    `<div class="prep-meta">${k ? `<span class="prep-kind ${k[0]}">${k[1]}</span>` : ''}${w.english ? `<span class="prep-hint">${escapeHtml(w.english)}</span>` : ''}</div>` +
+    (w.key && w.phrase ? `<div class="prep-context">${prepBlanked(w.phrase)}</div>` : '');
+}
+function fillPrepBlank(){
+  if(!current || current.type !== 'preposition') return;
+  const a = String(current.answer || '').split(/[/;]/)[0].trim();
+  document.querySelectorAll('#promptText .prep-blank, #promptSub .prep-blank').forEach(b => { b.textContent = a; b.classList.add('filled'); });
+}
 function matchPreposition(userInput, answerCell){
   const norm = s => String(s||'').toLowerCase().trim().replace(/[.,;!?]/g,'');
   const u = norm(userInput);
@@ -2142,10 +2177,8 @@ function renderFlashcardQuestion(w){
   document.getElementById('typeBadge').className = 'typebadge ' + (w.type || '');
   document.getElementById('typeBadge').textContent = typeLabel(w);
   document.getElementById('listTag').textContent = listTagText(w);
-  document.getElementById('promptText').textContent = w.english || '—';
-  document.getElementById('promptSub').textContent = w.type === 'preposition' && w.phrase
-    ? w.phrase.replace(/_{2,}/g, '___')
-    : '';
+  if(w.type === 'preposition' && w.phrase) prepPromptSet(w);
+  else { document.getElementById('promptText').textContent = w.english || '—'; document.getElementById('promptSub').textContent = ''; }
 
   document.getElementById('fields').innerHTML = `<div id="fcPhase1">
     <button class="snt-show-btn" type="button" id="fcShow">🃏 Show answer <kbd>↵</kbd></button>
@@ -2159,6 +2192,7 @@ function renderFlashcardQuestion(w){
 }
 
 function revealFlashcard(){
+  fillPrepBlank();
   if(flashcardRevealed) return;
   flashcardRevealed = true;
   const spk = txt => txt ? speakerBtn(String(txt).split(/[;/]/)[0].trim()) : '';
@@ -2175,8 +2209,8 @@ function revealFlashcard(){
   } else if(current.type === 'adjective'){
     answerHtml += `<div class="answerline"><span class="k">Dutch</span><span class="v">${mainAnswerHtml(current, current.dutch)}</span> ${spk(current.dutch)}</div>`;
   } else if(current.type === 'preposition'){
-    answerHtml += `<div class="answerline"><span class="k">Preposition</span><span class="v">${escapeHtml(current.answer)}</span></div>`;
-    if(current.dutch) answerHtml += `<div class="answerline"><span class="k">Sentence</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
+    // the gap in the question fills in; here only the preposition + the sentence's audio
+    answerHtml += `<div class="answerline"><span class="k">Preposition</span><span class="v">${escapeHtml(current.answer)}</span> ${current.dutch ? spk(current.dutch) : ''}</div>`;
   } else if(current.type === 'sentence'){
     answerHtml += `<div class="answerline"><span class="k">Translation</span><span class="v">${escapeHtml(current.dutch)}</span> ${spk(current.dutch)}</div>`;
   }
@@ -2941,7 +2975,8 @@ function stripExTag(s){ return String(s || '').replace(EX_TAG, ''); }
 const NOTE_KINDS = [['💡', 'hook', 'Remember'], ['🧩', 'gram', 'Grammar'], ['📌', 'prep', 'Preposition'],
   ['⚠️', 'warn', 'Watch out'], ['🔗', 'rel', 'Related'], ['🇧🇪', 'be', 'In Belgium'], ['🏷️', 'reg', '']];
 const NOTE_ORDER = ['hook', 'gram', 'prep', 'warn', 'rel', 'be', 'plain', 'reg'];
-const NOTE_ACRONYMS = new Set(['BE','NL','EU','UK','US','TV','LED','EHBO','CO2','MOT','CVO','NT2','OK','ID','GSM','PC','BTW','KBC','NMBS','RIZIV','CEO','FR','EN','DE','PS','AI']);
+const NOTE_ACRONYMS = new Set(['BE','NL','EU','UK','US','TV','LED','CO2','MOT','CVO','NT2','OK','ID','GSM','PC','KBC','NMBS','RIZIV','CEO','AI',
+  'MIVB','GP','CM','VAB','DPD','GLS','KU','WK','EK','NAVO','NATO','MAS','COVID','VLD','FR','AZERTY','QWERTY','OCMW','VDAB','PMD','GFT','BTW','DIY','CV','OV','CVA','BBQ','ZOO','SMS','WIFI','PIN','USB','HR','IT','KMI']);   // not DE/EN/BTW: Dutch words
 // Dutch words written in capitals for emphasis ("denken AAN", "PECH sounds like…") → accent, lower case
 function noteInline(t){
   return escapeHtml(t).replace(/(?<![\p{L}\d])\p{Lu}[\p{Lu}\-]*\p{Lu}(?![\p{L}\d])/gu,
@@ -3555,9 +3590,10 @@ function mistakeTips(items, w){
     }
     if(swap){
       const [up, np] = swap;
-      const here = w.type === 'preposition'
-        ? String(w.phrase || '').replace(/_{2,}/, np)
-        : (altList(dutchOf(w))[0] || '');
+      // preposition cards: name the pair (uitzicht op), not the whole sentence again
+      const here = (w.type === 'preposition'
+        ? (w.key ? `${w.key} ${np}` : String(w.phrase || '').replace(/_{2,}/, np))
+        : (altList(dutchOf(w))[0] || '')).replace(/[.!?]+$/, '');
       const others = phrasesWithPrep(up, w.id);
       tips.push(others.length
         ? `“${up}” belongs to ${others.map(o => '<i>' + escapeHtml(o) + '</i>').join(', ')}. This one takes <b>${np}</b>: <b>${escapeHtml(here)}</b>.`
@@ -3730,6 +3766,7 @@ function recordResult(ok, opts){
 
 function showFeedback(ok, items){
   feedbackShown = true;
+  fillPrepBlank();
   if(ok){ const ha = document.getElementById('hintArea'); if(ha) ha.innerHTML = ''; }   // an "Almost!" nudge is done once it's right
   const fb = document.getElementById('feedback');
   fb.className = 'feedback show ' + (ok ? 'correct' : 'wrong');
@@ -4870,6 +4907,7 @@ const TOUR_STEPS = [
      <li><b>Fill the gap</b>: complete a real sentence.</li></ul>`],
   ['✍️', 'When you answer', `<ul><li>Press <b>Enter</b> to check, and <b>Enter</b> again for the next card. <b>Hint</b> and <b>Reveal</b> help when you're stuck.</li>
      <li>When the answer needs a preposition (<i>wachten <b>op</b></i>), the card says <b>answer: verb + preposition</b>.</li>
+     <li>Preposition cards ask for the word that goes with a key word (<i>uitzicht ___</i>). The label says if it's a <b>vaste prepositie</b> (always this one) or <b>geen vaste prepositie</b> (it depends on the meaning).</li>
      <li>On a computer: <b>Tab</b> jumps between fields, <b>Alt/⌥ + number</b> types the quick words, <b>D</b> / <b>H</b> answer de / het.</li>
      <li>Made a small typo? Tap <b>“↩ It was a typo, count it”</b> so it doesn't count as wrong.</li>
      <li>Wrong answers come back after about 10 minutes, and again on later days.</li>
