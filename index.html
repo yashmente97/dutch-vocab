@@ -521,6 +521,7 @@
     background:var(--bg);color:var(--ink);outline:none;margin-bottom:10px;}
   .picker-search:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,107,26,.12);}
   .pq-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+  .pq-tile[data-quick="expr"]{grid-column:1/-1;}
   .pq-tile{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--line);border-radius:12px;background:var(--card);
     padding:10px 12px;cursor:pointer;font:inherit;color:var(--ink);}
   .pq-tile:hover{border-color:var(--orange);}
@@ -869,7 +870,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.2.3';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.3.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1598,6 +1599,9 @@ function recentLabel(lists){
   const f = tree.find(n => n.lists.length === lists.length && n.lists.every(l => lists.includes(l)));
   return f ? `All of ${f.folder}` : `${lists.length} lists`;
 }
+const EXPR_FOLDER = 'Expressions';
+// Card badge: phrases from the Expressions folder show 'expression' instead of 'sentence'
+function typeLabel(w){ return !w ? '' : (w.type === 'sentence' && w.folder === EXPR_FOLDER) ? 'expression' : (w.type || ''); }
 function renderScopeTree(){
   const box = document.getElementById('scopeTreeBox'); if(!box) return;
   const q = (document.getElementById('scopeSearch').value || '').trim().toLowerCase();
@@ -1606,6 +1610,10 @@ function renderScopeTree(){
   const known = new Set(tree.flatMap(n => n.lists));
   const needsTotal = deck.filter(isNeedsWord).length;
   const allTotal = Object.values(stats).reduce((a,o)=>a+o.total,0);
+  // Expressions: everyday spoken phrases, a one-tap practice set of their own
+  const exprLists = (tree.find(n => n.folder === EXPR_FOLDER) || { lists: [] }).lists;
+  const exprTotal = exprLists.reduce((a,l)=>a+((stats[l]||{}).total||0),0);
+  const exprActive = scopeMode==='custom' && exprLists.length && selectedLists.length===exprLists.length && exprLists.every(l=>selectedLists.includes(l));
   const cnt = (n, word) => `${n} ${word}${n===1?'':'s'}`;
 
   // Quick tiles + recents (hidden while searching or combining)
@@ -1616,11 +1624,12 @@ function renderScopeTree(){
     quick.innerHTML =
       `<div class="pq-tiles">`+
         `<button class="pq-tile ${scopeMode==='needs'?'active':''}" data-quick="needs"><span class="pq-t">⚑ Needs practice</span><span class="pq-s">${cnt(needsTotal,'weak word')} from all lists</span></button>`+
-        `<button class="pq-tile ${scopeMode==='all'||(scopeMode==='custom'&&!selectedLists.length)?'active':''}" data-quick="all"><span class="pq-t">🔀 Everything</span><span class="pq-s">${cnt(allTotal,'word')}</span></button>`+
+        `<button class="pq-tile ${scopeMode==='all'||(scopeMode==='custom'&&!selectedLists.length)?'active':''}" data-quick="all"><span class="pq-t">🔀 Everything</span><span class="pq-s">${cnt(allTotal,'word')}</span>` + (exprLists.length ? `</button><button class="pq-tile ${exprActive?'active':''}" data-quick="expr"><span class="pq-t">💬 Expressions</span><span class="pq-s">${cnt(exprTotal,'phrase')} for fluent speaking</span>` : '') + `</button>`+
       `</div>`+
       (recents.length ? `<div class="pq-label">Recent</div><div class="pq-recents">`+
         recents.map((r,i)=>`<button class="pq-recent" data-recent="${i}">↺ ${escapeHtml(recentLabel(r))}</button>`).join('')+`</div>` : '');
-    quick.querySelectorAll('[data-quick]').forEach(b => b.addEventListener('click', () => applyScope(b.dataset.quick, [])));
+    quick.querySelectorAll('[data-quick]').forEach(b => b.addEventListener('click', () =>
+      b.dataset.quick === 'expr' ? applyScope('custom', exprLists) : applyScope(b.dataset.quick, [])));
     quick.querySelectorAll('[data-recent]').forEach(b => b.addEventListener('click', () => applyScope('custom', recents[+b.dataset.recent])));
   }
 
@@ -1962,7 +1971,7 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':
 
 function setupCommonHeader(w, badgeLabel){
   document.getElementById('typeBadge').className = 'typebadge ' + w.type;
-  document.getElementById('typeBadge').textContent = badgeLabel || w.type;
+  document.getElementById('typeBadge').textContent = badgeLabel || typeLabel(w);
   document.getElementById('listTag').textContent = listTagText(w);
 }
 function renderArticleQuestion(w){
@@ -2131,7 +2140,7 @@ function renderFlashcardQuestion(w){
   setupCommonHeader(w, 'flashcards');
   document.getElementById('promptText').className = 'prompt';
   document.getElementById('typeBadge').className = 'typebadge ' + (w.type || '');
-  document.getElementById('typeBadge').textContent = w.type || '';
+  document.getElementById('typeBadge').textContent = typeLabel(w);
   document.getElementById('listTag').textContent = listTagText(w);
   document.getElementById('promptText').textContent = w.english || '—';
   document.getElementById('promptSub').textContent = w.type === 'preposition' && w.phrase
@@ -2323,6 +2332,14 @@ function next(forceWord){
   updateBackButton();
   if(!current){
     empty.style.display='block'; qv.style.display='none';
+    // Only phrases in the chosen lists, but a word-only mode (de/het, verb forms, fill the gap)?
+    const pool = browseBase(), mode = settings.practiceMode || 'normal';
+    if(pool.length && pool.every(w => w.type === 'sentence') && ['article', 'verbform', 'cloze'].includes(mode)){
+      empty.innerHTML = `<h2>Phrases use Flip cards</h2><p>These lists are expressions and sentences. Practise them with <b>Flip cards</b> or <b>Type it</b>.</p>`+
+        `<button class="btn primary" id="toFlip" type="button">🃏 Switch to Flip cards</button>`;
+      document.getElementById('toFlip').addEventListener('click', () => { const ms = document.getElementById('modeSel'); ms.value = 'flashcards'; ms.dispatchEvent(new Event('change')); renderChoosers(); });
+      return;
+    }
     empty.innerHTML = `<h2>Nothing to practice here 🎉</h2><p>No words match this list / word-type selection right now.<br/>Try another list or word type above, or switch to “All lists” + “All types”.</p>`;
     return;
   }
@@ -2366,7 +2383,7 @@ function next(forceWord){
 
   document.getElementById('promptText').className = 'prompt';
   document.getElementById('typeBadge').className = 'typebadge '+current.type;
-  document.getElementById('typeBadge').textContent = current.type;
+  document.getElementById('typeBadge').textContent = typeLabel(current);
   document.getElementById('listTag').textContent = listTagText(current);
   document.getElementById('promptText').textContent = current.english || '—';
 
@@ -2645,9 +2662,11 @@ function collectAndGrade(){
 const PREPS = new Set(['aan','achter','bij','boven','door','in','met','na','naar','om','onder','op','over',
   'tegen','tot','tussen','uit','van','voor','zonder']);
 // Number of words the learner must type for the card's main Dutch form (article not counted).
+// Words to type in the main answer. Only a noun's article is left out (shown as "+ article");
+// in a verb phrase the article is part of it: 'de moeite waard zijn' = 4 words.
 function answerWordCount(w){
   const first = altList(dutchOf(w))[0] || '';
-  return stripArticle(first).split(/\s+/).filter(Boolean).length;
+  return (w.type === 'noun' ? stripArticle(first) : first.trim()).split(/\s+/).filter(Boolean).length;
 }
 // Words of a verb phrase that stay the same in all three forms: "van tafel", "zich", "aan" …
 function fixedExtras(w){
@@ -4843,7 +4862,7 @@ document.getElementById('btnListen').addEventListener('click', openListening);
 const TOUR_STEPS = [
   ['👋', 'Welkom!', `<p>This app helps you learn the Dutch you need for NT2: words, verb forms, prepositions and listening.</p>
      <p>It works like a smart flashcard box: it remembers which words you find hard and brings them back <b>just before you would forget them</b>. 10–15 minutes a day is enough.</p>`],
-  ['📚', 'Choose what to practise', `<p>Tap the <b>Practising</b> box at the top to pick a thema or list, or combine several lists.</p>
+  ['📚', 'Choose what to practise', `<p>Tap the <b>Practising</b> box at the top to pick a thema or list, or combine several lists. <b>💬 Expressions</b> there gives you everyday spoken phrases (best with Flip cards).</p>
      <p>Under <b>Words</b> you can narrow it down to nouns, verbs, adjectives or prepositions.</p>`],
   ['🎯', 'Five ways to practise', `<ul><li><b>✍️ Type it</b>: the main mode. See the English, type the Dutch.</li>
      <li><b>🃏 Flip cards</b>: think of the answer, flip, and say if you knew it. Cards you knew come back days later; it has its own schedule.</li>
