@@ -100,7 +100,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Variable","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
     background:radial-gradient(1200px 600px at 50% -200px, var(--bg-wash) 0%, transparent 50%), var(--bg);}
-  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-x:clip;}
   .wrap{width:100%;max-width:760px;padding:18px 16px 60px;}
   header.app{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
   .logo{font-weight:800;font-size:20px;letter-spacing:-.4px;display:flex;align-items:center;gap:10px;color:var(--ink);}
@@ -642,6 +642,13 @@
     background:var(--card);color:var(--ink);cursor:pointer;transition:all .15s ease;white-space:nowrap;}
   .pick:hover{border-color:var(--orange);color:var(--orange-dark);}
   .pick.on{background:var(--orange);border-color:var(--orange);color:#fff;font-weight:600;box-shadow:0 1px 5px rgba(255,107,26,.3);}
+  .card.fc-mode{touch-action:pan-y;position:relative;}
+  .card.fc-drag{will-change:transform;cursor:grabbing;user-select:none;-webkit-user-select:none;}
+  .swipe-tag{position:absolute;top:20px;padding:5px 12px;border-radius:10px;border:2.5px solid;font-weight:800;font-size:15px;letter-spacing:.08em;
+    opacity:0;pointer-events:none;z-index:5;background:var(--card);}
+  .swipe-tag.yes{right:20px;color:var(--green);border-color:var(--green);transform:rotate(10deg);}
+  .swipe-tag.no{left:20px;color:var(--red);border-color:var(--red);transform:rotate(-10deg);}
+  .fc-swipe-hint{text-align:center;font-size:12px;color:var(--muted);margin-top:10px;}
   .steps{align-items:center;}
   .step-n{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:700;margin-right:6px;
     background:var(--orange);color:#fff;vertical-align:1px;}
@@ -902,7 +909,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.5.7';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.5.8';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -2031,6 +2038,7 @@ function pickNext(){
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 function setupCommonHeader(w, badgeLabel){
+  if(badgeLabel !== 'flashcards') document.getElementById('card').classList.remove('fc-mode');
   document.getElementById('typeBadge').className = 'typebadge ' + w.type;
   document.getElementById('typeBadge').textContent = badgeLabel || typeLabel(w);
   document.getElementById('listTag').textContent = listTagText(w);
@@ -2169,7 +2177,7 @@ function prepPromptSet(w){
   const pt = document.getElementById('promptText');
   pt.className = 'prompt prep-prompt' + (w.key ? ' prep-key' : '');
   // the key word is the question ("uitzicht ___"); the sentence below shows it in use
-  pt.innerHTML = w.key ? `${escapeHtml(w.key)} <span class="prep-blank">&nbsp;</span>` : prepBlanked(w.phrase || w.english);
+  pt.innerHTML = w.key ? (/_{2,}/.test(w.key) ? escapeHtml(w.key).replace(/_{2,}/, '<span class="prep-blank">&nbsp;</span>') : `${escapeHtml(w.key)} <span class="prep-blank">&nbsp;</span>`) : prepBlanked(w.phrase || w.english);
   const k = PREP_KINDS[(w.kind || '').toLowerCase()];
   document.getElementById('promptSub').innerHTML =
     `<div class="prep-meta">${k ? `<span class="prep-kind ${k[0]}">${k[1]}</span>` : ''}${w.english ? `<span class="prep-hint">${escapeHtml(w.english)}</span>` : ''}</div>` +
@@ -2213,6 +2221,7 @@ let flashcardRevealed = false;
 function renderFlashcardQuestion(w){
   flashcardRevealed = false;
   setupCommonHeader(w, 'flashcards');
+  document.getElementById('card').classList.add('fc-mode');
   document.getElementById('promptText').className = 'prompt';
   document.getElementById('typeBadge').className = 'typebadge ' + (w.type || '');
   document.getElementById('typeBadge').textContent = typeLabel(w);
@@ -2263,9 +2272,12 @@ function revealFlashcard(){
   <div class="sentence-buttons">
     <button class="snt-btn no" type="button" id="fcNo">✗ I didn't know <kbd>N</kbd><span class="fc-when">again in a minute</span></button>
     <button class="snt-btn yes" type="button" id="fcYes">✓ I knew it <kbd>↵</kbd><span class="fc-when">${fcWhenLabel(fcRec(current.id))}</span></button>
-  </div>`;
-  document.getElementById('fcYes').addEventListener('click', () => advanceFlashcard(true));
-  document.getElementById('fcNo').addEventListener('click', () => advanceFlashcard(false));
+  </div>${isTouchDevice() ? '<div class="fc-swipe-hint">Swipe → I knew it · ← I didn\'t know</div>' : ''}`;
+  document.getElementById('fcYes').addEventListener('click', () => gradeFlashcard(true));
+  document.getElementById('fcNo').addEventListener('click', () => gradeFlashcard(false));
+  if(!reduceMotion()) document.getElementById('card').animate(
+    [{ transform: 'perspective(1000px) rotateY(80deg)', opacity: .3 }, { transform: 'none', opacity: 1 }],
+    { duration: 280, easing: 'cubic-bezier(.2,.8,.2,1)' });
 
   if(settings.autoSpeak){
     const txt = primarySpeakable(current);
@@ -2338,6 +2350,96 @@ function advanceFlashcard(knew){
   flashcardRevealed = false;
   next();
 }
+// ---- Swipe & animations for flip cards: drag right = I knew it, left = I didn't know.
+// The card tilts with your finger, a stamp fades in, and past the threshold it flies off; the next card slides in.
+// Tap the card (not a button) to show the answer. Buttons and keys use the same fly-out.
+function reduceMotion(){ return window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches; }
+function isTouchDevice(){ return window.matchMedia && matchMedia('(pointer: coarse)').matches; }
+let fcAnimating = false;
+function swipeTags(card, dir, strength){
+  let yes = card.querySelector('.swipe-tag.yes'), no = card.querySelector('.swipe-tag.no');
+  if(!yes){ card.insertAdjacentHTML('beforeend', '<div class="swipe-tag yes">KNEW IT</div><div class="swipe-tag no">AGAIN</div>');
+            yes = card.querySelector('.swipe-tag.yes'); no = card.querySelector('.swipe-tag.no'); }
+  yes.style.opacity = dir > 0 ? strength : 0; no.style.opacity = dir < 0 ? strength : 0;
+}
+function clearSwipeTags(card){ card.querySelectorAll('.swipe-tag').forEach(t => t.remove()); }
+function flyCardOut(card, knew, fromDx){
+  const dir = knew ? 1 : -1, w = Math.max(window.innerWidth, 420);
+  swipeTags(card, dir, 1);
+  const a = card.animate([
+    { transform: `translateX(${fromDx}px) rotate(${fromDx / 18}deg)`, opacity: 1 },
+    { transform: `translateX(${dir * w}px) rotate(${dir * 22}deg)`, opacity: 0 }],
+    { duration: 260, easing: 'cubic-bezier(.4,0,.7,.4)', fill: 'forwards' });
+  card.style.transform = '';
+  let done = false;
+  const finish = () => {
+    if(done) return; done = true;
+    clearSwipeTags(card);
+    try { advanceFlashcard(knew); } finally {
+      a.cancel();
+      card.animate([{ transform: 'translateY(16px) scale(.97)', opacity: 0 }, { transform: 'none', opacity: 1 }],
+                   { duration: 220, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      fcAnimating = false;
+    }
+  };
+  a.onfinish = finish;
+  setTimeout(finish, 420);   // never get stuck if the animation is paused (app in background)
+}
+function gradeFlashcard(knew){
+  if(fcAnimating || !flashcardRevealed) return;
+  if(reduceMotion()){ advanceFlashcard(knew); return; }
+  fcAnimating = true;
+  flyCardOut(document.getElementById('card'), knew, 0);
+}
+function initCardSwipe(){
+  const card = document.getElementById('card');
+  if(!card || card.dataset.swipe) return;
+  card.dataset.swipe = '1';
+  let sx = 0, sy = 0, dx = 0, pid = null, drag = false, dragEndAt = 0;
+  const threshold = () => Math.min(110, window.innerWidth * 0.28);
+  const active = () => currentSubmode === 'flashcards' && flashcardRevealed && !fcAnimating;
+  card.addEventListener('pointerdown', e => {
+    if(!active() || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if(e.target.closest('input, textarea, select')) return;
+    sx = e.clientX; sy = e.clientY; dx = 0; pid = e.pointerId; drag = false;
+  });
+  card.addEventListener('pointermove', e => {
+    if(pid !== e.pointerId) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if(!drag){
+      if(Math.abs(mx) > 12 && Math.abs(mx) > Math.abs(my) * 1.3){
+        drag = true; card.classList.add('fc-drag');
+        try { card.setPointerCapture(pid); } catch(_){}
+      } else { if(Math.abs(my) > 12) pid = null; return; }
+    }
+    dx = mx;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    swipeTags(card, Math.sign(dx), Math.min(1, Math.abs(dx) / threshold()));
+    e.preventDefault();
+  });
+  const end = e => {
+    if(pid !== e.pointerId) return;
+    pid = null;
+    if(!drag) return;
+    drag = false; dragEndAt = Date.now(); card.classList.remove('fc-drag');
+    if(e.type === 'pointerup' && Math.abs(dx) >= threshold() && active()){
+      if(navigator.vibrate) try { navigator.vibrate(12); } catch(_){}
+      fcAnimating = true; flyCardOut(card, dx > 0, dx);
+    } else {
+      const from = card.style.transform; card.style.transform = ''; clearSwipeTags(card);
+      if(from) card.animate([{ transform: from }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
+  };
+  card.addEventListener('pointerup', end);
+  card.addEventListener('pointercancel', end);
+  card.addEventListener('click', e => {
+    if(Date.now() - dragEndAt < 350){ e.preventDefault(); e.stopPropagation(); return; }   // the click a swipe may leave behind is not a tap
+    // tap the card to flip it (buttons, speakers and links keep their own job)
+    if(currentSubmode === 'flashcards' && !flashcardRevealed && current && !e.target.closest('button, a, input, select, textarea, label')) revealFlashcard();
+  }, true);
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initCardSwipe); else initCardSwipe();
+
 // 1) cards you didn't know, once their minute is up; 2) cards whose interval is over (most overdue
 // first); 3) cards you haven't flipped yet; 4) nothing left → the cards coming back soonest.
 let fcDoneNoticeDay = '';
@@ -3691,7 +3793,7 @@ function mistakeTips(items, w){
       const [up, np] = swap;
       // preposition cards: name the pair (uitzicht op), not the whole sentence again
       const here = (w.type === 'preposition'
-        ? (w.key ? `${w.key} ${np}` : String(w.phrase || '').replace(/_{2,}/, np))
+        ? (w.key ? (/_{2,}/.test(w.key) ? w.key.replace(/_{2,}/, np) : `${w.key} ${np}`) : String(w.phrase || '').replace(/_{2,}/, np))
         : (altList(dutchOf(w))[0] || '')).replace(/[.!?]+$/, '');
       const others = phrasesWithPrep(up, w.id);
       tips.push(others.length
@@ -4032,8 +4134,8 @@ document.addEventListener('keydown', e=>{
     if(!flashcardRevealed){
       if(e.key === 'Enter'){ e.preventDefault(); revealFlashcard(); return; }
     } else {
-      if(e.code === 'KeyY' || e.key === 'Enter'){ e.preventDefault(); advanceFlashcard(true); return; }
-      if(e.code === 'KeyN'){ e.preventDefault(); advanceFlashcard(false); return; }
+      if(e.code === 'KeyY' || e.key === 'Enter' || e.key === 'ArrowRight'){ e.preventDefault(); gradeFlashcard(true); return; }
+      if(e.code === 'KeyN' || e.key === 'ArrowLeft'){ e.preventDefault(); gradeFlashcard(false); return; }
     }
   }
   if(e.key==='Enter'){
