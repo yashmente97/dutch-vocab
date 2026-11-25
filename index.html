@@ -720,7 +720,7 @@
     </button>
     <div class="chooser">
       <div class="chooser-label">Words</div>
-      <div class="picks" id="typeChips" role="radiogroup" aria-label="Word type"></div>
+      <div class="picks" id="typeChips" role="group" aria-label="Word types (tap several to combine)"></div>
       <div class="chooser-label">Learn words</div>
       <div class="picks steps" id="modeChips" role="radiogroup" aria-label="Learn words: step 1 Flip cards, step 2 Type it"></div>
       <div class="chooser-label">Extra drills</div>
@@ -912,7 +912,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.6.1';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.6.2';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -954,7 +954,10 @@ let settings = {...DEFAULT_SETTINGS};
 let scope = 'all';                 // kept for any legacy code paths but no longer the primary state
 let scopeMode = 'all';             // 'all' | 'needs' | 'custom'
 let selectedLists = [];            // array of full list names when scopeMode === 'custom'
-let typeFilter = 'all';      // 'all' | 'noun' | 'verb' | 'adjective'
+let typeFilter = 'all';      // 'all' or one or more of noun / verb / adjective / preposition, comma-joined ('noun,verb')
+const PICK_TYPES = ['noun', 'verb', 'adjective', 'preposition'];
+function typeSet(){ return typeFilter === 'all' ? null : typeFilter.split(',').filter(t => PICK_TYPES.includes(t)); }
+function typeOk(w){ const t = typeSet(); return !t || t.includes(w.type); }
 let current = null;          // current word
 let lastId = null;
 let previousWord = null;   // The word we were on before the current one — supports 1-step "Back" button
@@ -1579,7 +1582,7 @@ function scopeSummary(){
   return { title:`${selectedLists.length} lists combined`, sub: selectedLists.slice(0,2).join(', ') + (selectedLists.length>2?' …':'') };
 }
 function buildScopeOptions(){
-  if(typeFilter === 'sentence') typeFilter = 'all';   // the "Sentences only" filter was removed
+  if(typeFilter !== 'all' && !(typeSet() || []).length) typeFilter = 'all';   // e.g. the removed "Sentences only" filter
   updateScopeButton();
   const ts = document.getElementById('typeSel'); if(ts) ts.value = typeFilter;
   const ms = document.getElementById('modeSel'); if(ms) ms.value = settings.practiceMode || 'normal';
@@ -1598,7 +1601,8 @@ function renderChoosers(){
   const chip = (group, [v, label], on) => `<button type="button" class="pick ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-${group}="${v}">${label}</button>`;
   const tc = document.getElementById('typeChips'), mc = document.getElementById('modeChips'), dc = document.getElementById('drillChips');
   if(!tc) return;
-  tc.innerHTML = TYPE_CHIPS.map(c => chip('type', c, c[0] === typeFilter)).join('');
+  const ts = typeSet();
+  tc.innerHTML = TYPE_CHIPS.map(c => chip('type', c, c[0] === 'all' ? !ts : !!ts && ts.includes(c[0]))).join('').replace(/role="radio"/g, 'role="checkbox"');
   // Learn words = the two-stage path (1 Flip cards → 2 Type it); the rest are independent drills
   const step = (v, n, label) => { const on = v === mode; return `<button type="button" class="pick step ${on ? 'on' : ''}" role="radio" aria-checked="${on}" data-mode="${v}"><span class="step-n">${n}</span>${label}<span class="step-c" id="stepCount-${v}"></span></button>`; };
   mc.innerHTML = step('flashcards', 1, '<span class="step-e">🃏 </span>Flip cards') + '<span class="step-arrow" aria-hidden="true">→</span>' + step('normal', 2, '<span class="step-e">✍️ </span>Type it');
@@ -1608,7 +1612,16 @@ function renderChoosers(){
   const md = document.getElementById('modeDesc'); if(md) md.hidden = true;   // explained in the App tour
   [mc, dc].forEach(el => el.querySelectorAll('[data-mode]').forEach(b => { const d = MODE_CHIPS.find(c => c[0] === b.dataset.mode); if(d) b.title = d[2]; }));
   const pickIn = (sel, v) => { const s = document.getElementById(sel); if(s.value === v) return; s.value = v; s.dispatchEvent(new Event('change')); renderChoosers(); };
-  tc.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => pickIn('typeSel', b.dataset.type)));
+  // Word types combine: tap to add / remove; all four ticked (or none left) = All
+  tc.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.type; let t = typeSet() || [];
+    if(v === 'all') t = [];
+    else t = t.includes(v) ? t.filter(x => x !== v) : t.concat(v);
+    const nf = !t.length || t.length === PICK_TYPES.length ? 'all' : PICK_TYPES.filter(x => t.includes(x)).join(',');
+    if(t.length === PICK_TYPES.length) toast('All word types: switched to All');
+    if(nf === typeFilter) return;
+    typeFilter = nf; save(); next(); renderChoosers();
+  }));
   [mc, dc].forEach(el => el.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => pickIn('modeSel', b.dataset.mode))));
 }
 // Live counts on the two steps: words still in Flip cards / words ready to type (current lists + word type)
@@ -1820,7 +1833,7 @@ function pool(){
   else if(scopeMode === 'custom' && selectedLists.length)
                                       p = deck.filter(w => selectedLists.includes(w.list));
   else                                p = deck.slice();
-  if(typeFilter!=='all') p = p.filter(w=>w.type===typeFilter);
+  if(typeFilter!=='all') p = p.filter(typeOk);
   p = p.filter(w=>!(progress[w.id] && progress[w.id].retired)); // hide mastered words
   // Practice mode narrowing
   const mode = settings.practiceMode || 'normal';
@@ -1837,7 +1850,7 @@ function scopePool(){
   if(scopeMode === 'needs') p = deck.filter(w => { const pr = progress[w.id]; return pr && pr.state === 'learning' && pr.lapses > 0; });
   else if(scopeMode === 'custom' && selectedLists.length) p = deck.filter(w => selectedLists.includes(w.list));
   else p = deck.slice();
-  if(typeFilter !== 'all') p = p.filter(w => w.type === typeFilter);
+  if(typeFilter !== 'all') p = p.filter(typeOk);
   return p.filter(w => !(progress[w.id] && progress[w.id].retired));
 }
 
@@ -4443,7 +4456,7 @@ function browseBase(){
   let p;
   if(scopeMode === 'custom' && selectedLists.length) p = deck.filter(w => selectedLists.includes(w.list));
   else p = deck.slice();                              // 'all' and 'needs' browse everything
-  if(typeFilter!=='all') p=p.filter(w=>w.type===typeFilter);
+  if(typeFilter!=='all') p=p.filter(typeOk);
   return p;
 }
 const STATUS_DEFS = [['all','All'],['new','New'],['flip','In flip cards'],['ready','Ready to type'],['learning','Learning'],['needs','Needs practice'],['known','Known'],['mastered','Mastered'],['problem','🩹 Problem words']];
@@ -4461,7 +4474,7 @@ function renderList(){
   const base = browseBase();
   const filtered = listSearch ? base.filter(w => wordMatchesSearch(w, listSearch)) : base;
   const scopeLabel = currentScopeLabel();
-  const typeLabel = typeFilter==='all' ? 'all types' : typeFilter+'s only';
+  const typeLabel = typeFilter==='all' ? 'all types' : typeSet().map(t => t + 's').join(' + ') + ' only';
   const note = listSearch
     ? `${filtered.length} of ${base.length} word(s) matching “${escapeHtml(listSearch)}” — ${scopeLabel} · ${typeLabel}.`
     : `${base.length} word(s) — ${scopeLabel} · ${typeLabel}. Click a status to filter.`;
