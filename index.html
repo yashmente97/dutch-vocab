@@ -366,6 +366,9 @@
   .prep-kind.expr{color:var(--blue);background:var(--noun-bg);border-color:transparent;}
   .prep-kind.free{color:var(--muted);background:var(--line-soft);}
   .prep-context{font-size:18px;line-height:1.5;color:var(--ink);margin-top:12px;}
+  .prep-context .example-line{margin-top:0;}
+  .prep-context .tr-btn{font-size:12px;vertical-align:middle;}
+  .prep-context .example-en{font-size:15px;margin-top:6px;}
   .prep-context .prep-blank{display:inline-block;min-width:44px;margin:0 2px;border-bottom:2px solid var(--orange);line-height:1.1;text-align:center;}
   .prep-context .prep-blank.filled{color:var(--orange-dark);border-bottom-color:transparent;min-width:0;font-weight:600;}
   .prep-phrase .prep-blank{display:inline-block;min-width:60px;padding:0 8px;background:var(--orange-soft);
@@ -909,7 +912,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.6.0';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.6.1';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1436,6 +1439,8 @@ function parseWorkbook(wb){
       example:pick(headers,'example','voorbeeld'),
       // "Example (EN)" — English translation of each example line (same line order)
       exampleEn:headers.findIndex(h => /example\s*\((en|english)\)|translation|vertaling/i.test(String(h||''))),
+      // "Phrase (EN)" — English translation of a preposition card's sentence (EN button under the question)
+      phraseEn:headers.findIndex(h => /^phrase\s*\((en|english)\)$/i.test(String(h||'').trim())),
       // "Also means" — other English meanings, shown under the question
       alsoEn:headers.findIndex(h => /also\s*means|other\s*meanings/i.test(String(h||''))),
       // "Preposition" — the word's fixed preposition(s), e.g. 'voor' or 'aan/over'
@@ -1472,7 +1477,7 @@ function parseWorkbook(wb){
         const kindI = headers.findIndex(h => /^kind$/i.test(String(h||'').trim()));
         out.push({type, folder, list:get(ci.list)||'General', english:eng,
           phrase, answer, dutch, notes:get(ci.notes), example:get(ci.example), exampleEn:get(ci.exampleEn), alsoEn:get(ci.alsoEn),
-          key:get(keyI), kind:get(kindI)});
+          key:get(keyI), kind:get(kindI), phraseEn:get(ci.phraseEn)});
       }else{
         const du = get(ci.dutch);
         if(!eng && !du) return;
@@ -2181,7 +2186,9 @@ function prepPromptSet(w){
   const k = PREP_KINDS[(w.kind || '').toLowerCase()];
   document.getElementById('promptSub').innerHTML =
     `<div class="prep-meta">${k ? `<span class="prep-kind ${k[0]}">${k[1]}</span>` : ''}${w.english ? `<span class="prep-hint">${escapeHtml(w.english)}</span>` : ''}</div>` +
-    (w.key && w.phrase ? `<div class="prep-context">${prepBlanked(w.phrase)}</div>` : '');
+    (w.key && w.phrase ? `<div class="prep-context"><span class="example-line${settings.showExampleEn ? ' show-en' : ''}">${prepBlanked(w.phrase)}` +
+      (w.phraseEn ? ` <button class="tr-btn" type="button" tabindex="-1" title="Show English translation (Alt+T)" aria-label="Show translation">EN</button><span class="example-en">${escapeHtml(w.phraseEn)}</span>` : '') +
+      `</span></div>` : '');
 }
 function fillPrepBlank(){
   if(!current || current.type !== 'preposition') return;
@@ -4757,6 +4764,8 @@ document.getElementById('btnCloseAccount').addEventListener('click', () => hide(
 // phone downloads words.xlsx only when it changed, and offers a reload when the app itself changed.
 const LS_DECKVER = 'dvt_deck_ver_v1';
 let updatesCheckedAt = 0;
+// Bump when parseWorkbook reads new columns, so phones re-read an unchanged words.xlsx with the new code
+const DECK_PARSER = 2;   // 2: Prepositions 'Phrase (EN)'
 async function checkForUpdates(force){
   if(location.protocol === 'file:') return;
   if(!force && Date.now() - updatesCheckedAt < 5 * 60 * 1000) return;
@@ -4765,7 +4774,7 @@ async function checkForUpdates(force){
   try{ const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); if(!r.ok) return; v = await r.json(); }catch(e){ return; }
   if(v.app && v.app !== APP_VERSION) showUpdateBar(v.app);
   let have = ''; try{ have = localStorage.getItem(LS_DECKVER) || ''; }catch(e){}
-  if(v.deck && (v.deck !== have || !deck.length)) await loadMasterDeck(v.deck);
+  if(v.deck && (v.deck + '#p' + DECK_PARSER !== have || !deck.length)) await loadMasterDeck(v.deck);
 }
 async function loadMasterDeck(ver){
   const first = !deck.length;
@@ -4774,7 +4783,7 @@ async function loadMasterDeck(ver){
     if(!r.ok) throw new Error('HTTP ' + r.status);
     const wb = XLSX.read(await r.arrayBuffer(), { type: 'array' });
     // remember the version only once the list is really stored, or the phone would never retry
-    if(await loadDeck(parseWorkbook(wb), { quiet: true })){ try{ localStorage.setItem(LS_DECKVER, ver); }catch(e){} }
+    if(await loadDeck(parseWorkbook(wb), { quiet: true })){ try{ localStorage.setItem(LS_DECKVER, ver + '#p' + DECK_PARSER); }catch(e){} }
     if(!first) toast('📚 The word list was updated.');
   }catch(e){
     console.warn('word list download failed', e);
