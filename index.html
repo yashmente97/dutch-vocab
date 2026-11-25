@@ -909,7 +909,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.5.9';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.6.0';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1545,13 +1545,13 @@ function buildFolderTree(){
     if(l) tree[f].add(l);
   }
   const nat = (a,b) => a.localeCompare(b, undefined, {numeric:true});
-  // 'Thema 1: … · Woordenschat' (the official word list) sorts before the thema's other lists
-  const key = l => { const [g, s] = splitList(l); return s ? g + ' · ' + (s === 'Woordenschat' ? '0' : '1' + s) : l; };
+  // 'Thema 1: … · Woordenschat' (the official word list) sorts first, then '· Mondeling & schriftelijk', then topic lists ('· Het weer')
+  const key = l => { const [g, s] = splitList(l); return s ? g + ' · ' + (s === 'Woordenschat' ? '0' : s.startsWith('Mondeling') ? '1' : '2' + s) : l; };
   return Object.keys(tree).sort(nat).map(f => ({ folder: f, lists: [...tree[f]].sort((a, b) => nat(key(a), key(b))) }));
 }
 // 'Thema 1: Op uitstap · Woordenschat' → ['Thema 1: Op uitstap', 'Woordenschat']; plain list names → [name, '']
 function splitList(l){ const i = l.lastIndexOf(' · '); return i > 0 ? [l.slice(0, i), l.slice(i + 3)] : [l, '']; }
-function subListLabel(s){ return s === 'Woordenschat' ? '⭐ Woordenschat' : s;
+function subListLabel(s){ return s === 'Woordenschat' ? '⭐ Woordenschat' : s === 'Het weer' ? '🌦️ Het weer' : s;
 }
 function currentScopeLabel(){
   const s = scopeSummary();
@@ -1714,7 +1714,7 @@ function renderScopeTree(){
       if(sub && g !== group){
         const both = node.lists.filter(x => splitList(x)[0] === g);
         html += `<div class="pl-group"><span>${escapeHtml(g)}</span>`+
-          (pickerMulti || both.length < 2 ? '' : `<button class="pl-both" data-group="${escapeHtml(g)}" data-gfolder="${escapeHtml(node.folder)}">Practise both</button>`)+`</div>`;
+          (pickerMulti || both.length < 2 ? '' : `<button class="pl-both" data-group="${escapeHtml(g)}" data-gfolder="${escapeHtml(node.folder)}">${both.length > 2 ? 'Practise all ' + both.length : 'Practise both'}</button>`)+`</div>`;
       }
       group = sub ? g : '';
       const st = stats[l] || {total:0,needs:0,fresh:0};
