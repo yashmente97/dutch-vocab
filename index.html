@@ -912,7 +912,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.6.2';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.6.3';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -955,7 +955,7 @@ let scope = 'all';                 // kept for any legacy code paths but no long
 let scopeMode = 'all';             // 'all' | 'needs' | 'custom'
 let selectedLists = [];            // array of full list names when scopeMode === 'custom'
 let typeFilter = 'all';      // 'all' or one or more of noun / verb / adjective / preposition, comma-joined ('noun,verb')
-const PICK_TYPES = ['noun', 'verb', 'adjective', 'preposition'];
+const PICK_TYPES = ['noun', 'verb', 'adjective', 'preposition', 'sentence'];
 function typeSet(){ return typeFilter === 'all' ? null : typeFilter.split(',').filter(t => PICK_TYPES.includes(t)); }
 function typeOk(w){ const t = typeSet(); return !t || t.includes(w.type); }
 let current = null;          // current word
@@ -1589,7 +1589,7 @@ function buildScopeOptions(){
   renderChoosers();
 }
 // Word type + practice mode as tappable chips (the hidden selects keep the existing change handlers)
-const TYPE_CHIPS = [['all', 'All'], ['noun', 'Nouns'], ['verb', 'Verbs'], ['adjective', 'Adjectives'], ['preposition', 'Prepositions']];
+const TYPE_CHIPS = [['all', 'All'], ['noun', 'Nouns'], ['verb', 'Verbs'], ['adjective', 'Adjectives'], ['preposition', 'Prepositions'], ['sentence', 'Sentences']];
 const MODE_CHIPS = [
   ['normal', '✍️ Type it', 'Type the Dutch for words that are ready (known on 3 days in Flip cards). The app decides what to review and when.'],
   ['flashcards', '🃏 Flip cards', 'Stage 1: get to know new words. Knew a card on 3 different days? It moves to Type it.'],
@@ -1612,7 +1612,7 @@ function renderChoosers(){
   const md = document.getElementById('modeDesc'); if(md) md.hidden = true;   // explained in the App tour
   [mc, dc].forEach(el => el.querySelectorAll('[data-mode]').forEach(b => { const d = MODE_CHIPS.find(c => c[0] === b.dataset.mode); if(d) b.title = d[2]; }));
   const pickIn = (sel, v) => { const s = document.getElementById(sel); if(s.value === v) return; s.value = v; s.dispatchEvent(new Event('change')); renderChoosers(); };
-  // Word types combine: tap to add / remove; all four ticked (or none left) = All
+  // Word types combine: tap to add / remove; all five ticked (or none left) = All
   tc.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
     const v = b.dataset.type; let t = typeSet() || [];
     if(v === 'all') t = [];
