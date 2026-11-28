@@ -912,7 +912,7 @@
 /* ============================================================
    Dutch Vocab Trainer — single-file app
    ============================================================ */
-const APP_VERSION = '1.6.4';   // bump on meaningful changes; surfaced in the header
+const APP_VERSION = '1.6.5';   // bump on meaningful changes; surfaced in the header
 const LS = {
   deck: 'dvt_deck_v1',
   prog: 'dvt_progress_v1',
@@ -1591,8 +1591,8 @@ function buildScopeOptions(){
 // Word type + practice mode as tappable chips (the hidden selects keep the existing change handlers)
 const TYPE_CHIPS = [['all', 'All'], ['noun', 'Nouns'], ['verb', 'Verbs'], ['adjective', 'Adjectives'], ['preposition', 'Prepositions'], ['sentence', 'Sentences']];
 const MODE_CHIPS = [
-  ['normal', '✍️ Type it', 'Type the Dutch for words that are ready (known on 3 days in Flip cards). The app decides what to review and when.'],
-  ['flashcards', '🃏 Flip cards', 'Stage 1: get to know new words. Knew a card on 3 different days? It moves to Type it.'],
+  ['normal', '✍️ Type it', 'Type the Dutch for words that are ready (known twice in Flip cards). The app decides what to review and when.'],
+  ['flashcards', '🃏 Flip cards', 'Stage 1: get to know new words. Knew a card twice? It moves to Type it.'],
   ['article', 'de / het', 'Nouns only: pick the right article. Fast drill, random order.'],
   ['verbform', 'Verb forms', 'Verbs only: practise the perfectum and imperfectum.'],
   ['cloze', 'Fill the gap', 'Complete a real example sentence with the missing word.']];
@@ -2312,11 +2312,12 @@ function revealFlashcard(){
 // in every mode (same as “Know it”).
 const FC_RETRY_MS = 60 * 1000;
 // Two stages per word (2026-11-22, the user's way of learning): get to know a word with flip cards;
-// after 'I knew it' on FC_READY_DAYS different days it is READY TO TYPE: it leaves flip cards and
+// after 'I knew it' FC_READY_DAYS times (any time, same day is fine; 2026-11-28, was 3 different days) it is READY TO TYPE: it leaves flip cards and
 // 'Type it' starts asking it. Type it only asks ready words. Words already practised by typing count as ready.
-const FC_READY_DAYS = 3;
+const FC_READY_DAYS = 2;        // 'I knew it' this many times → ready to type (name kept from the days rule)
+const FC_AGAIN_MS = 10 * 60 * 1000;   // after a first 'I knew it' the card comes back ~10 minutes later
 function fcRec(id){ return progress['fc::' + id]; }
-function fcDays(r){ return r ? (r.kd || 0) : 0; }            // different days you knew it in flip cards
+function fcDays(r){ return r ? (r.kd || 0) : 0; }            // times you knew it in flip cards
 function isTypeReady(w){
   const p = progress[w.id];
   if(p && p.seen && !fsrsIsNew(p)) return true;               // already practised by typing
@@ -2336,14 +2337,9 @@ function migrateFcStages(){
     r.kdDay = r.last ? todayStr(new Date(r.last)) : '';
   }
 }
-// Next flip interval: knew it on 1 day → back tomorrow; 2 days → back in 2 days; the 3rd day → ready.
-function fcNextIvl(r){
-  const kd = fcDays(r) + ((r && r.kdDay === todayStr()) ? 0 : 1);
-  return kd >= FC_READY_DAYS ? 0 : kd <= 1 ? 1 : 2;
-}
+// After 'I knew it': not yet ready → back in ~10 minutes; FC_READY_DAYS-th time → ready to type.
 function fcWhenLabel(r){
-  const kd = fcDays(r) + ((r && r.kdDay === todayStr()) ? 0 : 1);
-  return kd >= FC_READY_DAYS ? '→ ready to type ✍️' : 'next in ' + fcFmtDays(fcNextIvl(r));
+  return fcDays(r) + 1 >= FC_READY_DAYS ? '→ ready to type ✍️' : 'again in 10 minutes';
 }
 function fcFmtDays(d){ return d < 1 ? 'a minute' : d === 1 ? '1 day' : d < 60 ? d + ' days' : Math.round(d / 30) + ' months'; }
 function advanceFlashcard(knew){
@@ -2351,16 +2347,15 @@ function advanceFlashcard(knew){
     const k = 'fc::' + current.id, r = progress[k] || { state: 'fc', reps: 0, lapses: 0, ivl: 0, kd: 0, kdDay: '' };
     const now = Date.now(), today = todayStr();
     if(knew){
-      r.ivl = fcNextIvl(r);
-      if(r.kdDay !== today){ r.kd = fcDays(r) + 1; r.kdDay = today; }   // one count per day
+      r.ivl = 0; r.kd = fcDays(r) + 1; r.kdDay = today;
       if(r.kd >= FC_READY_DAYS && !r.ready){
         r.ready = true; r.readyAt = now; r.ivl = 0; r.due = now;
         const word = current;
         setTimeout(() => toast(`✍️ Ready to type: “${word.english}” now moves to Type it.`), 250);
-      } else r.due = now + Math.max(1, r.ivl) * DAY_MS;
+      } else r.due = now + (r.ready ? Math.max(1, r.ivl || 1) * DAY_MS : FC_AGAIN_MS);
     } else {
       r.ivl = 0; r.due = now + FC_RETRY_MS; r.lapses = (r.lapses || 0) + 1;
-      if(!r.ready && fcDays(r) > 0 && r.kdDay !== today) r.kd = fcDays(r) - 1;   // a miss takes one day off
+      if(!r.ready && fcDays(r) > 0) r.kd = fcDays(r) - 1;   // a miss takes one 'knew it' off
     }
     r.reps = (r.reps || 0) + 1; r.last = now; r.state = 'fc';
     progress[k] = r;
@@ -2573,11 +2568,11 @@ function next(forceWord){
     const wire = () => { const b = document.getElementById('toMode'); if(b) b.addEventListener('click', () => { const ms = document.getElementById('modeSel'); ms.value = b.dataset.m; ms.dispatchEvent(new Event('change')); renderChoosers(); }); };
     if(md === 'normal' && all.length){
       const learning = all.filter(w => !isTypeReady(w)).length;
-      empty.innerHTML = `<h2>Nothing ready to type yet</h2><p>Words move to Type it after you knew them on <b>${FC_READY_DAYS} different days</b> in Flip cards. ${learning} word${learning === 1 ? '' : 's'} in these lists ${learning === 1 ? 'is' : 'are'} still in Flip cards.</p>` + switchTo('flashcards', '🃏 Go to Flip cards');
+      empty.innerHTML = `<h2>Nothing ready to type yet</h2><p>Words move to Type it after you knew them <b>${FC_READY_DAYS} times</b> in Flip cards. ${learning} word${learning === 1 ? '' : 's'} in these lists ${learning === 1 ? 'is' : 'are'} still in Flip cards.</p>` + switchTo('flashcards', '🃏 Go to Flip cards');
       wire(); return;
     }
     if(md === 'flashcards' && all.length){
-      empty.innerHTML = `<h2>All ready to type 🎉</h2><p>You knew every word in these lists on ${FC_READY_DAYS} different days. Time to type them.</p>` + switchTo('normal', '✍️ Go to Type it');
+      empty.innerHTML = `<h2>All ready to type 🎉</h2><p>You knew every word in these lists ${FC_READY_DAYS} times. Time to type them.</p>` + switchTo('normal', '✍️ Go to Type it');
       wire(); return;
     }
     // Only phrases in the chosen lists, but a word-only mode (de/het, verb forms, fill the gap)?
@@ -2742,8 +2737,8 @@ function updateStats(){
     (cardPart || `<span class="pill">${p.length} words</span>`)+
     `<span class="st-group">`+
       seg('new', nw, 'new', 'Never practised')+
-      seg('flip', flip, 'in flip cards', 'Getting to know them in Flip cards (knew it on fewer than ' + FC_READY_DAYS + ' different days)')+
-      seg('ready', ready, 'ready to type', 'Knew it on ' + FC_READY_DAYS + ' different days — now asked in Type it')+
+      seg('flip', flip, 'in flip cards', 'Getting to know them in Flip cards (knew it fewer than ' + FC_READY_DAYS + ' times)')+
+      seg('ready', ready, 'ready to type', 'Knew it ' + FC_READY_DAYS + ' times — now asked in Type it')+
       seg('prac', need, 'weak', 'Needs practice — you got these wrong recently')+
       seg('learn', lr, 'learning', 'In progress')+
       seg('known', kn, 'known', 'Answered correctly several times')+
@@ -4419,7 +4414,7 @@ function renderWordDetail(w){
     (w.notes ? `<div class="wl-card-notes">${formatNotes(w.notes, 'all', w)}</div>` : '')+
     line('Example', w.example ? formatExample(w.example, w.exampleEn) : '')+
     line('Stage', isTypeReady(w) ? (progress[w.id] && progress[w.id].seen ? '✍️ typing' : '✍️ ready to type')
-      : fc ? `🃏 flip cards · knew it on ${fcDays(fc)} of ${FC_READY_DAYS} days` + (fc.due > Date.now() ? ' · back ' + fmtDueIn(fc.due) : '') : '🃏 not flipped yet')+
+      : fc ? `🃏 flip cards · knew it ${fcDays(fc)} of ${FC_READY_DAYS} times` + (fc.due > Date.now() ? ' · back ' + fmtDueIn(fc.due) : '') : '🃏 not flipped yet')+
     `</div>`;
   return card + `<div class="row"><div><div class="k">Seen</div><div class="v">${seen}×</div></div>`+
          `<div><div class="k">Accuracy</div><div class="v">${seen?acc+'%':'—'} (${correct}/${seen})</div></div>`+
@@ -5131,7 +5126,7 @@ const TOUR_STEPS = [
   ['📚', 'Choose what to practise', `<p>Tap the <b>Practising</b> box at the top to pick a thema or list, or combine several lists. <b>💬 Expressions</b> there gives you everyday spoken phrases (best with Flip cards).</p>
      <p>Under <b>Words</b> you can narrow it down to nouns, verbs, adjectives or prepositions.</p>`],
   ['🎯', 'Learn in two stages', `<ul><li><b>🃏 Flip cards</b> first: think of the answer, flip, and say if you knew it. A card you knew comes back the next day, then two days later.</li>
-     <li>Knew it on <b>3 different days</b>? The word is <b>ready to type</b>: it leaves Flip cards and moves to <b>✍️ Type it</b>, where you type the Dutch.</li>
+     <li>Knew it <b>twice</b> (the same day is fine)? The word is <b>ready to type</b>: it leaves Flip cards and moves to <b>✍️ Type it</b>, where you type the Dutch.</li>
      <li><b>de / het</b>: articles only.</li><li><b>Verb forms</b>: perfectum and imperfectum.</li>
      <li><b>Fill the gap</b>: complete a real sentence.</li></ul>`],
   ['✍️', 'When you answer', `<ul><li>Press <b>Enter</b> to check, and <b>Enter</b> again for the next card. <b>Hint</b> and <b>Reveal</b> help when you're stuck.</li>
